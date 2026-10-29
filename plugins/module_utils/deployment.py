@@ -123,7 +123,7 @@ def validate_spec(kind, script, vmid, scripts_ref, core_ref, settings, require_p
             raise ProxmoxError("Invalid boolean creation field: %s" % key)
         if value is None or isinstance(value, (dict, list)):
             raise ProxmoxError("Creation setting %s requires a scalar" % key)
-        if key in BINARY and value not in (0, 1, "0", "1", False, True):
+        if key in BINARY and value not in (0, 1, "0", "1", False, True, "true", "false", "yes", "no"):
             raise ProxmoxError("Invalid binary creation field: %s" % key)
         if key == "mac" and not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", str(value)):
             raise ProxmoxError("Invalid MAC address")

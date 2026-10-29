@@ -79,3 +79,7 @@ The `application` role uses `inspect`, `present`, `reconcile`, `update`. The ear
 - Shared public field names and Core mappings are governed by `contracts/guest.v1.json`. Compare changes to `mwyau/terraform-provider-proxmox-community-scripts`, updating both code/tests when the contract changes; no deprecated aliases in these unreleased projects.
 - Use `scripts_ref`/`core_ref` for pinned installation and separate `update_scripts_ref` for a requested LXC software-update source revision.
 - No jointly managed guest: Terraform owns guests in its state; Ansible may inspect them or perform disjoint in-guest configuration, but must not run `action: present`, `reconcile` or `update` on the same VMID unless ownership is explicitly delegated.
+
+## Explicit LXC and VM identity (supersedes earlier vmid-only guidance)
+- Public Ansible application role: `ctid` for LXC, `vmid` for VM; exactly one. `var_ctid` is LXC Core's internal variable. The same mutually exclusive inputs are used by the Terraform guest resource; Terraform `id` stays a computed state/import identity `lxc/<ctid>` or `vm/<vmid>`.
+- Reflect the mutually exclusive identity rule in `contracts/guest.v1.json`, public examples, and tests. Avoid an additional `id` creation alias.

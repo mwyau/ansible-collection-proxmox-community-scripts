@@ -10,7 +10,7 @@
       vars:
         action: reconcile
         kind: lxc
-        vmid: 120
+        ctid: 120
         script: adguard
         node: pve1
         api_host: pve.example.internal

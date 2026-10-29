@@ -9,6 +9,7 @@
     "validate_certs",
     "node",
     "kind",
+    "ctid",
     "vmid",
     "script",
     "scripts_ref",
@@ -121,5 +122,19 @@
         "VM_DISK_CACHE": "cache=none,"
       }
     }
-  ]
+  ],
+  "identity": {
+    "lxc": {
+      "required": "ctid",
+      "forbidden": "vmid",
+      "state_id": "lxc/<ctid>"
+    },
+    "vm": {
+      "required": "vmid",
+      "forbidden": "ctid",
+      "state_id": "vm/<vmid>"
+    },
+    "internal_cluster_identifier": "vmid",
+    "description": "Proxmox cluster IDs share the same global number space; public inputs depend on guest type."
+  }
 }

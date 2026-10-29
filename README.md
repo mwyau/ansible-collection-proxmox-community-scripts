@@ -137,7 +137,7 @@ The `guest_ssh` role can also manage a Debian/Ubuntu/Alpine VM **after** a norma
 
 ## Concise role interface and manual script identity
 
-The `application` role uses unprefixed options: `action`, `api_host`, `api_token_id`, `api_token_secret`, `node`, `kind`, `vmid` (LXC or VM), `script`, `settings`, `ssh`, `cloud_init`, and `script_override`. The internal deploy, hardware and update roles retain their distinct prefixes to avoid clashes. **Existing guests do not need scripts/Core revision hashes.** Creating a missing guest still requires full, immutable `scripts_ref` and `core_ref`.
+The `application` role uses unprefixed options: `action`, `api_host`, `api_token_id`, `api_token_secret`, `node`, `kind`, `ctid` for LXC or `vmid` for VM, `script`, `settings`, `ssh`, `cloud_init`, and `script_override`. The internal deploy, hardware and update roles retain their distinct prefixes to avoid clashes. **Existing guests do not need scripts/Core revision hashes.** Creating a missing guest still requires full, immutable `scripts_ref` and `core_ref`.
 
 For an existing LXC/VM whose original script cannot be established from the Proxmox description/tags or a running LXC's `/usr/bin/update` file:
 
@@ -149,7 +149,7 @@ For an existing LXC/VM whose original script cannot be established from the Prox
     api_token_id: "{{ proxmox_token_id }}"
     api_token_secret: "{{ proxmox_token_secret }}"
     node: pve1
-    vmid: 120
+    ctid: 120
     kind: lxc
     script: adguard
     script_override: adguard
@@ -164,11 +164,11 @@ If `script_override` is not supplied, unknown guests are inspected safely but mu
 
 ## One shared LXC / VM settings vocabulary
 
-Use `vmid` for both LXC and VM; Proxmox VMIDs are cluster-global. Both otherwise use the same `cores`, `memory` (MiB), `disk_size` (GiB), `bridge`, `storage`, `hostname`, `vlan`, `mac`, and `mtu` when supported by the selected installer. Public settings are *not* shell variable names.
+Use `ctid` for LXC and `vmid` for VM; Proxmox stores both identifiers in one cluster-global VMID namespace. Both otherwise use the same `cores`, `memory` (MiB), `disk_size` (GiB), `bridge`, `storage`, `hostname`, `vlan`, `mac`, and `mtu` when supported by the selected installer. Public settings are *not* shell variable names.
 
 | Public | LXC Core | VM Core |
 | --- | --- | --- |
-| `vmid` | `var_ctid` | `VM_VMID` |
+| `ctid` / `vmid` | `var_ctid` | `VM_VMID` |
 | `cores` | `var_cpu` | `VM_CORES` |
 | `memory` | `var_ram` | `VM_RAM` |
 | `disk_size` | `var_disk` (GiB) | `VM_DISK_SIZE` (e.g. `32G`) |

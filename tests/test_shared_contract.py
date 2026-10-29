@@ -37,14 +37,18 @@ class SharedContractTests(unittest.TestCase):
                     set(case["expected_env"]),
                 )
 
-    def test_facade_has_exact_shared_inputs_without_ctid(self):
+    def test_facade_requires_ctid_for_lxc_vmid_for_vm(self):
         defaults = (ROOT / "roles/application/defaults/main.yml").read_text()
         keys = {line.split(":", 1)[0] for line in defaults.splitlines()
                 if line and not line.startswith((" ", "#", "-")) and ":" in line}
-        self.assertNotIn("ctid", keys)
+        self.assertIn("ctid", keys)
         self.assertTrue(set(CONTRACT["common_inputs"]).issubset(keys))
         role = (ROOT / "roles/application/tasks/main.yml").read_text()
-        self.assertIn('_cs_guest_id: "{{ vmid }}"', role)
+        self.assertIn('_cs_guest_id: "{{ ctid if kind == \'lxc\' else vmid }}"', role)
+        self.assertIn("kind == 'lxc' and ctid is not none and vmid is none", role)
+        self.assertIn("kind == 'vm' and vmid is not none and ctid is none", role)
+        self.assertEqual(CONTRACT["identity"]["lxc"]["required"],"ctid")
+        self.assertEqual(CONTRACT["identity"]["vm"]["required"],"vmid")
         self.assertIn('update_scripts_ref: "{{ update_scripts_ref }}"', role)
 
 if __name__ == "__main__":

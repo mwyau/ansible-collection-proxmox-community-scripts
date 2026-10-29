@@ -15,7 +15,7 @@
         api_token_secret: "{{ lookup('env', 'PROXMOX_TOKEN_SECRET') }}"
         node: pve1
         kind: lxc
-        vmid: 120
+        ctid: 120
         script: adguard
         script_override: adguard
         settings:

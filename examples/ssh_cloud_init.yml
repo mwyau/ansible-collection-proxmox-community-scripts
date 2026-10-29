@@ -12,7 +12,7 @@
         node: pve1
         kind: lxc
         script: adguard
-        vmid: 120
+        ctid: 120
         scripts_ref: '0123456789abcdef0123456789abcdef01234567'
         core_ref: '0123456789abcdef0123456789abcdef01234567'
         settings:

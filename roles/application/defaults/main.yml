@@ -8,7 +8,8 @@ validate_certs: true
 node: ""
 kind: lxc
 script: ""
-vmid: null
+ctid: null  # LXC ID; mutually exclusive with VM vmid
+vmid: null  # VM ID; mutually exclusive with LXC ctid
 scripts_ref: ""
 core_ref: ""
 settings: {}  # cores, memory (MiB), disk_size (GiB), bridge, storage, etc.

@@ -13,7 +13,7 @@
         api_token_secret: "{{ lookup('ansible.builtin.env', 'PROXMOX_TOKEN_SECRET') }}"
         node: pve1
         kind: lxc
-        ctid: 120
+        vmid: 120
         script: adguard
         scripts_ref: '0123456789abcdef0123456789abcdef01234567'
         core_ref: '0123456789abcdef0123456789abcdef01234567'

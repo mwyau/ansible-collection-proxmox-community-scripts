@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "contract_id": "mwyau.proxmox_community_scripts.guest",
+  "definition": "Shared public creation vocabulary and upstream Core environment mappings; Terraform lifecycle and Ansible actions remain distinct.",
+  "common_inputs": [
+    "api_host",
+    "api_token_id",
+    "api_token_secret",
+    "validate_certs",
+    "node",
+    "kind",
+    "vmid",
+    "script",
+    "scripts_ref",
+    "core_ref",
+    "settings",
+    "guest_defaults",
+    "script_vars",
+    "accept_unverified_install",
+    "update_request_id",
+    "update_scripts_ref",
+    "update_backup_storage",
+    "disk_key"
+  ],
+  "kind_values": [
+    "lxc",
+    "vm"
+  ],
+  "lxc_fields": {
+    "cores": "var_cpu",
+    "memory": "var_ram",
+    "disk_size": "var_disk",
+    "hostname": "var_hostname",
+    "bridge": "var_brg",
+    "vlan": "var_vlan",
+    "storage": "var_container_storage",
+    "template_storage": "var_template_storage",
+    "os": "var_os",
+    "os_version": "var_version",
+    "privileged": "var_unprivileged",
+    "ipv4": "var_net",
+    "gateway": "var_gateway",
+    "ipv6_method": "var_ipv6_method",
+    "mac": "var_mac",
+    "mtu": "var_mtu",
+    "dns": "var_ns",
+    "searchdomain": "var_searchdomain",
+    "timezone": "var_timezone",
+    "tags": "var_tags",
+    "protection": "var_protection",
+    "nesting": "var_nesting",
+    "tun": "var_tun",
+    "fuse": "var_fuse",
+    "keyctl": "var_keyctl",
+    "gpu": "var_gpu",
+    "mknod": "var_mknod",
+    "mount_fs": "var_mount_fs",
+    "apt_cacher": "var_apt_cacher",
+    "apt_cacher_ip": "var_apt_cacher_ip",
+    "inherit_host_ca": "var_inherit_host_ca",
+    "sdn_vnet": "var_sdn_vnet",
+    "http_proxy": "var_http_proxy",
+    "http_no_proxy": "var_http_no_proxy"
+  },
+  "vm_fields": {
+    "cores": "VM_CORES",
+    "memory": "VM_RAM",
+    "disk_size": "VM_DISK_SIZE",
+    "hostname": "VM_HOSTNAME",
+    "bridge": "VM_BRIDGE",
+    "vlan": "VM_VLAN",
+    "storage": "VM_STORAGE",
+    "mac": "VM_MAC",
+    "mtu": "VM_MTU",
+    "cpu_type": "VM_CPU",
+    "machine": "VM_MACHINE",
+    "start": "VM_START",
+    "disk_cache": "VM_DISK_CACHE",
+    "timezone": "VM_TIMEZONE"
+  },
+  "encoding_cases": [
+    {
+      "kind": "lxc",
+      "settings": {
+        "cores": "2",
+        "memory": "2048",
+        "disk_size": "8",
+        "privileged": "true",
+        "nesting": "false",
+        "tun": "true",
+        "gpu": "false"
+      },
+      "expected_env": {
+        "var_cpu": "2",
+        "var_ram": "2048",
+        "var_disk": "8",
+        "var_unprivileged": "0",
+        "var_nesting": "0",
+        "var_tun": "yes",
+        "var_gpu": "no"
+      }
+    },
+    {
+      "kind": "vm",
+      "settings": {
+        "cores": "4",
+        "memory": "4096",
+        "disk_size": "8",
+        "cpu_type": "host",
+        "machine": "q35",
+        "start": "false",
+        "disk_cache": "none"
+      },
+      "expected_env": {
+        "VM_CORES": "4",
+        "VM_RAM": "4096",
+        "VM_DISK_SIZE": "8G",
+        "VM_CPU": "host",
+        "VM_MACHINE": "q35",
+        "VM_START": "no",
+        "VM_DISK_CACHE": "cache=none,"
+      }
+    }
+  ]
+}

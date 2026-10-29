@@ -205,6 +205,8 @@ def create_environment(kind, vmid, scripts_ref, core_ref, settings, fields=None,
             environment[fields[key]] = "yes" if value in (True, "true", "yes", 1, "1") else "no"
         elif key in LXC_YESNO:
             environment[fields[key]] = "yes" if value in (True, "true", "yes", 1, "1") else "no"
+        elif key in BINARY:
+            environment[fields[key]] = "1" if value in (True, "true", "yes", 1, "1") else "0"
         elif key == "disk_cache" and kind == "vm":
             environment[fields[key]] = VM_CACHE[value]
         elif key == "disk_size" and kind == "vm":

@@ -159,3 +159,6 @@ Current LXC host updater: `ProxmoxVE/tools/pve/update-apps.sh`. It accepts `var_
 - Keep standard Ansible `present` semantics for existence only; do not mutate an already-existing guest's CPU/RAM/disk by inheriting defaults.
 - Add explicit `reconcile` action for supported existing hardware mutations. Only per-guest `settings` can drive reconciliation; no silent fleet-default hardware resize. Existing VM cloud-init changes also require their separate opt-in.
 - Remove the ambiguous `manage_hardware` toggle, previously defaulting to true. `inspect` and `update` remain distinct actions.
+
+## Companion Terraform provider contract (2026-10-29)
+Canonical shared input names: `api_host`, `api_token_id`, `api_token_secret`, `validate_certs`, `vmid` (both kinds), `node`, `kind`, `script`, `scripts_ref`, `core_ref`, `settings`, `guest_defaults`, `script_vars`, `update_request_id`, `update_scripts_ref`, `update_backup_storage` and `disk_key`. The versioned canonical mapping is `contracts/guest.v1.json`. Do not add legacy aliases. Terraform controls state and lifecycle for its own VMIDs; Ansible may separately configure software inside such guests without competing PVE hardware mutations. CI must check contract parity across repositories. No live PVE integration run is implied.

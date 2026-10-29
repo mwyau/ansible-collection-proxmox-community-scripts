@@ -73,3 +73,9 @@ The `application` role exposes `guest_defaults.all`, `guest_defaults.lxc`, and `
 
 ## Public lifecycle contract
 The `application` role uses `inspect`, `present`, `reconcile`, `update`. The earlier `manage_hardware` toggle was removed: `present` ensures existence but never reconciles existing guest hardware. `guest_defaults` applies to creation only. `reconcile` changes only explicitly supplied per-guest hardware `settings` and never relies on `guest_defaults`. Do not silently change existing resources or add an automatic reboot. Keep `script_vars` as the exact upstream variable-name passthrough.
+
+## Shared Ansible/Terraform contract
+- The public application facade uses `vmid` for **both** LXC and VM; `var_ctid` is only the upstream LXC environment variable. Never introduce a `ctid` public alias.
+- Shared public field names and Core mappings are governed by `contracts/guest.v1.json`. Compare changes to `mwyau/terraform-provider-proxmox-community-scripts`, updating both code/tests when the contract changes; no deprecated aliases in these unreleased projects.
+- Use `scripts_ref`/`core_ref` for pinned installation and separate `update_scripts_ref` for a requested LXC software-update source revision.
+- No jointly managed guest: Terraform owns guests in its state; Ansible may inspect them or perform disjoint in-guest configuration, but must not run `action: present`, `reconcile` or `update` on the same VMID unless ownership is explicitly delegated.

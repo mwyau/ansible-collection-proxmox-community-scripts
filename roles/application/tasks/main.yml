@@ -5,19 +5,17 @@
       - action in ['inspect', 'present', 'reconcile', 'update']
       - kind in ['lxc', 'vm']
       - script | regex_search('^[a-z0-9][a-z0-9-]*$') is not none
-      - (kind == 'lxc' and ctid is not none and vmid is none) or (kind == 'vm' and vmid is not none and ctid is none)
-      - ctid is none or (ctid | string) is match('^[0-9]+$')
-      - vmid is none or (vmid | string) is match('^[0-9]+$')
-      - (ctid if kind == 'lxc' else vmid) | int >= 100
-      - (ctid if kind == 'lxc' else vmid) | int <= 999999999
+      - vmid is not none and (vmid | string) is match('^[0-9]+$')
+      - vmid | int >= 100
+      - vmid | int <= 999999999
       - node | length > 0
       - script_override | length == 0 or script_override == script
       - action != 'update' or script_override | length == 0
-    fail_msg: LXC requires only ctid; VM requires only vmid. Validate action, script and guest ID.
+    fail_msg: A single vmid (LXC or VM) is required. Validate action, script and guest identity.
 
-- name: Normalize CTID/VMID for Proxmox API and internal roles
+- name: Set canonical cluster VMID for Proxmox API and internal roles
   ansible.builtin.set_fact:
-    _cs_guest_id: "{{ ctid if kind == 'lxc' else vmid }}"
+    _cs_guest_id: "{{ vmid }}"
 
 - name: Resolve guest-specific resource configuration
   ansible.builtin.import_tasks: resolve_settings.yml
@@ -160,7 +158,7 @@
     update_vmid: "{{ _cs_guest_id }}"
     update_script: "{{ script }}"
     update_request_id: "{{ _cs_update_options.request_id }}"
-    update_scripts_ref: "{{ scripts_ref }}"
+    update_scripts_ref: "{{ update_scripts_ref }}"
     update_apply: "{{ _cs_update_options.apply }}"
     update_backup: "{{ _cs_update_options.backup }}"
     update_backup_storage: "{{ _cs_update_options.backup_storage }}"

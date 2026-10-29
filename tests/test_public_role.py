@@ -9,15 +9,16 @@ class PublicRoleTests(unittest.TestCase):
     def test_only_short_public_names(self):
         defaults = (ROOT / "roles/application/defaults/main.yml").read_text()
         for name in ("action", "api_host", "kind", "script", "script_override",
-                     "ctid", "vmid", "settings", "ssh", "cloud_init"):
+                     "vmid", "settings", "ssh", "cloud_init"):
             self.assertIn("\n" + name + ":", defaults)
         self.assertNotIn("\napplication_", defaults)
-        self.assertIn("ctid: null", defaults)
+        self.assertNotIn("\nctid:", defaults)
         self.assertIn("vmid: null", defaults)
         tasks = (ROOT / "roles/application/tasks/main.yml").read_text()
-        self.assertIn("kind == 'lxc' and ctid is not none and vmid is none", tasks)
-        self.assertIn("kind == 'vm' and vmid is not none and ctid is none", tasks)
-        self.assertIn("ctid if kind == 'lxc' else vmid", tasks)
+        self.assertIn("vmid is not none", tasks)
+        self.assertIn('_cs_guest_id: "{{ vmid }}"', tasks)
+        self.assertNotIn("ctid if kind", tasks)
+        self.assertIn('update_scripts_ref: "{{ update_scripts_ref }}"', tasks)
 
     def test_manual_override_propagates_to_all_existing_guest_paths(self):
         tasks = (ROOT / "roles/application/tasks/main.yml").read_text()

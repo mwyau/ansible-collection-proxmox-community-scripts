@@ -1,0 +1,19 @@
+---
+- name: Validate global and type-specific guest defaults
+  ansible.builtin.assert:
+    that:
+      - guest_defaults is mapping
+      - settings is mapping
+      - (guest_defaults.keys() | list | difference(['all', 'lxc', 'vm']) | length) == 0
+      - guest_defaults.get('all', {}) is mapping
+      - guest_defaults.get('lxc', {}) is mapping
+      - guest_defaults.get('vm', {}) is mapping
+    fail_msg: "guest_defaults accepts only all/lxc/vm mappings; settings must be a mapping."
+
+- name: Resolve explicit settings over kind and shared defaults
+  ansible.builtin.set_fact:
+    _cs_effective_settings: >-
+      {{ guest_defaults.get('all', {})
+         | combine(guest_defaults.get(kind, {}))
+         | combine(settings) }}
+

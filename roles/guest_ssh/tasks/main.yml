@@ -1,0 +1,42 @@
+---
+- name: Validate explicit guest SSH policy
+  ansible.builtin.assert:
+    that:
+      - guest_ssh is mapping
+      - guest_ssh.enabled is defined
+      - guest_ssh.enabled is boolean
+      - guest_ssh.public_keys | default([]) is sequence
+      - guest_ssh.enabled or guest_ssh.public_keys | default([]) | length == 0
+    fail_msg: Set guest_ssh.enabled explicitly; disabled SSH cannot accept new public keys.
+
+- name: Read guest distribution facts
+  ansible.builtin.setup:
+    gather_subset:
+      - min
+
+- name: Reject unsupported guest distribution
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in ['Debian', 'Alpine']
+    fail_msg: Guest SSH maintenance currently supports Debian/Ubuntu and Alpine only.
+
+- name: Install SSH server using guest package manager
+  ansible.builtin.package:
+    name: "{{ 'openssh-server' if ansible_facts.os_family == 'Debian' else 'openssh' }}"
+    state: present
+  when: guest_ssh.enabled
+
+- name: Add authorized public keys without replacing existing access
+  ansible.posix.authorized_key:
+    user: "{{ guest_ssh_user }}"
+    key: "{{ item }}"
+    state: present
+    manage_dir: true
+  loop: "{{ guest_ssh.public_keys | default([]) }}"
+  when: guest_ssh.enabled
+
+- name: Apply requested SSH daemon state
+  ansible.builtin.service:
+    name: "{{ 'ssh' if ansible_facts.os_family == 'Debian' else 'sshd' }}"
+    state: "{{ 'started' if guest_ssh.enabled else 'stopped' }}"
+    enabled: "{{ guest_ssh.enabled }}"

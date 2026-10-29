@@ -1,0 +1,208 @@
+---
+- name: Validate application update request
+  ansible.builtin.assert:
+    that:
+      - update_api_host | length > 0
+      - update_api_token_id | length > 0
+      - update_api_token_secret | length > 0
+      - update_node | regex_search('^[A-Za-z0-9_.-]+$') is not none
+      - update_script | regex_search('^[a-z0-9][a-z0-9-]*$') is not none
+      - update_request_id | regex_search('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$') is not none
+      - update_scripts_ref | regex_search('^[a-f0-9]{40}$') is not none
+      - (update_backup | bool) or (update_accept_no_backup | bool)
+      - (not update_backup | bool) or (update_backup_storage | length > 0)
+      - update_timeout_seconds | int >= 60
+    fail_msg: Invalid or unsafe update options; supply a unique request id and backup storage.
+  no_log: true
+
+- name: Inspect selected LXC via Proxmox API (safe in check mode)
+  mwyau.proxmox_community_scripts.resource:
+    api_host: "{{ update_api_host }}"
+    api_token_id: "{{ update_api_token_id }}"
+    api_token_secret: "{{ update_api_token_secret }}"
+    validate_certs: "{{ update_validate_certs }}"
+    vmid: "{{ update_vmid }}"
+    node: "{{ update_node }}"
+    kind: lxc
+    expected_script: "{{ update_script }}"
+    action: inspect
+  delegate_to: localhost
+  become: false
+  register: _cs_update_before
+  no_log: true
+
+- name: Inspect completed update request marker
+  ansible.builtin.stat:
+    path: "{{ update_checkout_root }}/update-state/{{ update_vmid }}/{{ update_script }}/{{ update_request_id }}.complete"
+  register: _cs_update_marker
+  become: true
+
+- name: Require a running LXC for a non-invasive update
+  ansible.builtin.assert:
+    that:
+      - _cs_update_before.resource.type == 'lxc'
+      - _cs_update_before.resource.node == update_node
+      - _cs_update_before.runtime_state.status == 'running'
+    fail_msg: Update requires an existing, running LXC on the selected Proxmox node.
+  when: not _cs_update_marker.stat.exists
+
+- name: Read LXC updater identity through the PVE host (no guest SSH key required)
+  ansible.builtin.command:
+    argv:
+      - pct
+      - exec
+      - "{{ update_vmid | string }}"
+      - --
+      - cat
+      - /usr/bin/update
+  changed_when: false
+  check_mode: false  # inspect only, never invoke the updater
+  become: true
+  register: _cs_entrypoint
+  no_log: true
+  when: not _cs_update_marker.stat.exists
+
+- name: Resolve LXC updater identity with the shared provenance parser
+  mwyau.proxmox_community_scripts.provenance_info:
+    kind: lxc
+    config: "{{ _cs_update_before.config }}"
+    update_entrypoint: "{{ _cs_entrypoint.stdout }}"
+    expected_script: "{{ update_script }}"
+  register: _cs_update_provenance
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when: not _cs_update_marker.stat.exists
+
+- name: Require positive, nonconflicting application provenance
+  ansible.builtin.assert:
+    that:
+      - _cs_update_provenance.provenance.status == 'verified'
+      - _cs_update_provenance.provenance.script == update_script
+    fail_msg: Updater and Proxmox metadata cannot verify this app; update was not run.
+  no_log: true
+  when: not _cs_update_marker.stat.exists
+
+- name: Report update decision in check mode
+  ansible.builtin.debug:
+    msg:
+      vmid: "{{ update_vmid }}"
+      script: "{{ update_script }}"
+      already_completed: "{{ _cs_update_marker.stat.exists | bool }}"
+      would_attempt_update: "{{ not (_cs_update_marker.stat.exists | bool) }}"
+      version_change_known: false
+      note: No upstream updater dry-run was executed.
+  when: ansible_check_mode
+
+- name: Require explicit execution approval
+  ansible.builtin.assert:
+    that:
+      - update_apply | bool
+    fail_msg: Set update_apply=true to execute this explicit application update request.
+  when:
+    - not ansible_check_mode
+    - not _cs_update_marker.stat.exists
+
+- name: Create private host-side update work directory
+  ansible.builtin.file:
+    path: "{{ update_checkout_root }}/update-state/{{ update_vmid }}/{{ update_script }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  become: true
+  when:
+    - not ansible_check_mode
+    - not _cs_update_marker.stat.exists
+
+- name: Checkout pinned updater version on the PVE host
+  ansible.builtin.git:
+    repo: https://github.com/community-scripts/ProxmoxVE.git
+    dest: "{{ update_checkout_root }}/scripts-{{ update_scripts_ref }}"
+    version: "{{ update_scripts_ref }}"
+    update: false
+  become: true
+  when:
+    - not ansible_check_mode
+    - not _cs_update_marker.stat.exists
+
+- name: Install root-owned one-shot update executor
+  ansible.builtin.copy:
+    src: update_once.sh
+    dest: "{{ update_checkout_root }}/update-state/update_once.sh"
+    owner: root
+    group: root
+    mode: '0700'
+  become: true
+  when:
+    - not ansible_check_mode
+    - not _cs_update_marker.stat.exists
+
+- name: Execute pinned updater under per-LXC lock (explicit opt-in)
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/setsid
+      - --wait
+      - /usr/bin/timeout
+      - -k
+      - '30'
+      - "{{ update_timeout_seconds | string }}"
+      - /bin/bash
+      - "{{ update_checkout_root }}/update-state/update_once.sh"
+      - "{{ update_vmid | string }}"
+      - "{{ update_script }}"
+      - "{{ update_request_id }}"
+      - "{{ update_checkout_root }}/scripts-{{ update_scripts_ref }}/tools/pve/update-apps.sh"
+      - "{{ update_checkout_root }}/update-state/{{ update_vmid }}/{{ update_script }}"
+    stdin: ""
+  environment:
+    PHS_SILENT: '1'
+    TERM: dumb
+    var_container: "{{ update_vmid | string }}"
+    var_unattended: 'yes'
+    var_skip_confirm: 'yes'
+    var_continue_on_error: 'no'
+    var_auto_reboot: 'no'
+    var_dry_run: 'no'
+    var_backup: "{{ 'yes' if update_backup | bool else 'no' }}"
+    var_backup_storage: "{{ update_backup_storage }}"
+  become: true
+  no_log: true
+  register: _cs_update_run
+  changed_when: "'APPLIED' in _cs_update_run.stdout"
+  when:
+    - not ansible_check_mode
+    - not _cs_update_marker.stat.exists
+
+- name: Inspect hardware and guest state after the update
+  mwyau.proxmox_community_scripts.resource:
+    api_host: "{{ update_api_host }}"
+    api_token_id: "{{ update_api_token_id }}"
+    api_token_secret: "{{ update_api_token_secret }}"
+    validate_certs: "{{ update_validate_certs }}"
+    node: "{{ update_node }}"
+    vmid: "{{ update_vmid }}"
+    kind: lxc
+    action: inspect
+    expected_script: "{{ update_script }}"
+  register: _cs_update_after
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when:
+    - not ansible_check_mode
+    - not _cs_update_marker.stat.exists
+
+- name: Refuse silent host hardware modification by updater
+  ansible.builtin.assert:
+    that:
+      - _cs_update_before.config.cores | default(none) == _cs_update_after.config.cores | default(none)
+      - _cs_update_before.config.memory | default(none) == _cs_update_after.config.memory | default(none)
+      - _cs_update_before.config.swap | default(none) == _cs_update_after.config.swap | default(none)
+      - _cs_update_before.config.rootfs | default(none) == _cs_update_after.config.rootfs | default(none)
+      - _cs_update_before.config.net0 | default(none) == _cs_update_after.config.net0 | default(none)
+      - _cs_update_before.config.net1 | default(none) == _cs_update_after.config.net1 | default(none)
+    fail_msg: Updater completed but modified Proxmox hardware/network. Review actual state before reconciliation.
+  when:
+    - not ansible_check_mode
+    - not _cs_update_marker.stat.exists

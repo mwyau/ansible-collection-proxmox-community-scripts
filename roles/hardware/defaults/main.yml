@@ -1,0 +1,16 @@
+---
+hardware_api_host: ""
+hardware_api_token_id: ""
+hardware_api_token_secret: ""
+hardware_validate_certs: true
+hardware_node: ""
+hardware_vmid: 100
+hardware_kind: lxc
+hardware_script: ""
+hardware_cores: null
+hardware_memory: null
+hardware_swap: null
+hardware_disk_gib: null
+hardware_disk_key: null
+hardware_sockets: null
+hardware_script_override: ""

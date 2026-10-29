@@ -1,0 +1,26 @@
+---
+# Existing Community Scripts LXC without a recognizable installer marker.
+# A matching manual script_override authorizes classification only; it never
+# changes a guest ID, type or already-proven contradictory identity.
+# No scripts_ref/core_ref is required for an already-existing VMID.
+- name: Inspect a manually classified existing Community Scripts guest
+  hosts: pve
+  gather_facts: false
+  roles:
+    - role: mwyau.proxmox_community_scripts.application
+      vars:
+        action: inspect
+        api_host: pve.example.internal
+        api_token_id: "{{ lookup('env', 'PROXMOX_TOKEN_ID') }}"
+        api_token_secret: "{{ lookup('env', 'PROXMOX_TOKEN_SECRET') }}"
+        node: pve1
+        kind: lxc
+        ctid: 120
+        script: adguard
+        script_override: adguard
+        settings:
+          cores: 2
+          memory: 2048
+        install: false
+        # Switch action to 'reconcile' with explicit settings only after
+        # reviewing provenance and the read-only hardware plan.

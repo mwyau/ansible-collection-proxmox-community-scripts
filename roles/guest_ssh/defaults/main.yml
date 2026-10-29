@@ -1,0 +1,5 @@
+---
+# Used in a guest-targeted play, preferably with
+# ansible_connection=community.proxmox.proxmox_pct_remote for LXCs.
+guest_ssh: {}
+guest_ssh_user: root

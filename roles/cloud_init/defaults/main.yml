@@ -1,0 +1,12 @@
+---
+cloud_init_api_host: ""
+cloud_init_api_token_id: ""
+cloud_init_api_token_secret: ""
+cloud_init_validate_certs: true
+cloud_init_node: ""
+cloud_init_vmid: 100
+cloud_init_script: ""
+cloud_init_settings: {}
+cloud_init_ssh: {}
+cloud_init_apply_existing: false
+cloud_init_script_override: ""

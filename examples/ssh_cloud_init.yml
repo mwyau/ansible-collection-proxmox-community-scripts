@@ -1,0 +1,62 @@
+---
+- name: Create a Community Scripts LXC with SSH public-key access
+  hosts: pve
+  gather_facts: false
+  roles:
+    - role: mwyau.proxmox_community_scripts.application
+      vars:
+        action: present
+        api_host: pve.example.internal
+        api_token_id: "{{ lookup('env', 'PROXMOX_TOKEN_ID') }}"
+        api_token_secret: "{{ lookup('env', 'PROXMOX_TOKEN_SECRET') }}"
+        node: pve1
+        kind: lxc
+        script: adguard
+        vmid: 120
+        scripts_ref: '0123456789abcdef0123456789abcdef01234567'
+        core_ref: '0123456789abcdef0123456789abcdef01234567'
+        settings:
+          cores: 2
+          memory: 1024
+          disk_size: 8
+          os: debian
+          os_version: 13
+        ssh:
+          enabled: true
+          public_keys:
+            - 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPUFcMCRObddaMmvUDio11yge6gRGXNv3uqMq7ve0x3 example'
+        install: false
+        accept_unverified_install: false
+
+- name: Create cloud-init-capable VM with an SSH public key
+  hosts: pve
+  gather_facts: false
+  roles:
+    - role: mwyau.proxmox_community_scripts.application
+      vars:
+        action: present
+        api_host: pve.example.internal
+        api_token_id: "{{ lookup('env', 'PROXMOX_TOKEN_ID') }}"
+        api_token_secret: "{{ lookup('env', 'PROXMOX_TOKEN_SECRET') }}"
+        node: pve1
+        kind: vm
+        script: ubuntu-vm
+        vmid: 121
+        scripts_ref: '0123456789abcdef0123456789abcdef01234567'
+        core_ref: '0123456789abcdef0123456789abcdef01234567'
+        settings:
+          cores: 2
+          memory: 4096
+          disk_size: 32
+          storage: local-lvm
+        ssh:
+          enabled: true
+          public_keys:
+            - 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPUFcMCRObddaMmvUDio11yge6gRGXNv3uqMq7ve0x3 example'
+        cloud_init:
+          enabled: true
+          user: ubuntu
+          network_mode: dhcp
+          dns: ['1.1.1.1']
+        install: false
+        accept_unverified_install: false

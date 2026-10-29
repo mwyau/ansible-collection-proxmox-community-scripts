@@ -1,0 +1,22 @@
+---
+# Explicit existing-guest hardware reconciliation.
+# A matching Community Scripts identity is required; never recreates the LXC.
+# The role does not inherit guest_defaults for this action.
+- name: Adjust an existing Community Scripts container
+  hosts: pve
+  gather_facts: false
+  roles:
+    - role: mwyau.proxmox_community_scripts.application
+      vars:
+        action: reconcile
+        kind: lxc
+        ctid: 120
+        script: adguard
+        node: pve1
+        api_host: pve.example.internal
+        api_token_id: "{{ lookup('env', 'PROXMOX_TOKEN_ID') }}"
+        api_token_secret: "{{ lookup('env', 'PROXMOX_TOKEN_SECRET') }}"
+        settings:
+          cores: 2
+          memory: 2048
+          disk_size: 12

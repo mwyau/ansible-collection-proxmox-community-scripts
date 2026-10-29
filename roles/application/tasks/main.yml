@@ -1,0 +1,177 @@
+---
+- name: Validate application action and target
+  ansible.builtin.assert:
+    that:
+      - action in ['inspect', 'present', 'reconcile', 'update']
+      - kind in ['lxc', 'vm']
+      - script | regex_search('^[a-z0-9][a-z0-9-]*$') is not none
+      - (kind == 'lxc' and ctid is not none and vmid is none) or (kind == 'vm' and vmid is not none and ctid is none)
+      - ctid is none or (ctid | string) is match('^[0-9]+$')
+      - vmid is none or (vmid | string) is match('^[0-9]+$')
+      - (ctid if kind == 'lxc' else vmid) | int >= 100
+      - (ctid if kind == 'lxc' else vmid) | int <= 999999999
+      - node | length > 0
+      - script_override | length == 0 or script_override == script
+      - action != 'update' or script_override | length == 0
+    fail_msg: LXC requires only ctid; VM requires only vmid. Validate action, script and guest ID.
+
+- name: Normalize CTID/VMID for Proxmox API and internal roles
+  ansible.builtin.set_fact:
+    _cs_guest_id: "{{ ctid if kind == 'lxc' else vmid }}"
+
+- name: Resolve guest-specific resource configuration
+  ansible.builtin.import_tasks: resolve_settings.yml
+
+- name: Inspect existing application through PVE metadata and guest updater
+  ansible.builtin.include_role:
+    name: mwyau.proxmox_community_scripts.provenance
+  vars:
+    provenance_api_host: "{{ api_host }}"
+    provenance_api_token_id: "{{ api_token_id }}"
+    provenance_api_token_secret: "{{ api_token_secret }}"
+    provenance_validate_certs: "{{ validate_certs }}"
+    provenance_node: "{{ node }}"
+    provenance_vmid: "{{ _cs_guest_id }}"
+    provenance_kind: "{{ kind }}"
+    provenance_expected_script: "{{ script }}"
+    provenance_script_override: "{{ script_override }}"
+  when: action == 'inspect'
+
+- name: Expose inspected guest configuration
+  ansible.builtin.set_fact:
+    _info: "{{ community_scripts_resource }}"
+  when: action == 'inspect'
+
+- name: Report inspected application metadata
+  ansible.builtin.debug:
+    msg:
+      vmid: "{{ _cs_guest_id }}"
+      kind: "{{ kind }}"
+      node: "{{ node }}"
+      script: "{{ community_scripts_provenance.script }}"
+      identity_status: "{{ community_scripts_provenance.status }}"
+      identity_evidence: "{{ community_scripts_provenance.evidence | map(attribute='source') | list }}"
+      status: "{{ _info.runtime_state.status | default('unknown') }}"
+      cores: "{{ _info.config.cores | default(none) }}"
+      memory: "{{ _info.config.memory | default(none) }}"
+      rootfs: "{{ _info.config.rootfs | default(none) }}"
+      pending: "{{ _info.pending_changes | default({}) }}"
+  when: action == 'inspect'
+
+- name: Create only if absent, reusing the pinned installation adapter
+  ansible.builtin.include_role:
+    name: mwyau.proxmox_community_scripts.deploy
+  vars:
+    deploy_api_host: "{{ api_host }}"
+    deploy_api_token_id: "{{ api_token_id }}"
+    deploy_api_token_secret: "{{ api_token_secret }}"
+    deploy_validate_certs: "{{ validate_certs }}"
+    deploy_node: "{{ node }}"
+    deploy_kind: "{{ kind }}"
+    deploy_script: "{{ script }}"
+    deploy_script_override: "{{ script_override }}"
+    deploy_vmid: "{{ _cs_guest_id }}"
+    deploy_scripts_ref: "{{ scripts_ref }}"
+    deploy_core_ref: "{{ core_ref }}"
+    deploy_script_vars: "{{ script_vars }}"
+    deploy_ssh: "{{ ssh }}"
+    deploy_cloud_init: "{{ cloud_init }}"
+    deploy_settings: "{{ _cs_effective_settings | dict2items | rejectattr('key', 'equalto', 'disk_key') | rejectattr('key', 'equalto', 'swap') | rejectattr('key', 'equalto', 'sockets') | items2dict }}"
+    deploy_existing_settings: {}
+    deploy_existing_disk: {}
+    deploy_execute: "{{ install }}"
+    deploy_accept_unverified_script: "{{ accept_unverified_install }}"
+  when: action == 'present'
+
+- name: Require explicit per-guest hardware settings for reconciliation
+  ansible.builtin.assert:
+    that:
+      - settings is mapping
+      - >-
+        (settings.keys() | list
+         | intersect(['cores', 'memory', 'swap', 'sockets', 'disk_size']) | length) > 0
+        or (kind == 'vm' and configure_existing_cloud_init | bool)
+    fail_msg: Set cores/memory/swap/sockets/disk_size explicitly under settings for action=reconcile.
+  when: action == 'reconcile'
+
+- name: Reconcile normalized hardware using community.proxmox
+  ansible.builtin.include_role:
+    name: mwyau.proxmox_community_scripts.hardware
+  vars:
+    hardware_api_host: "{{ api_host }}"
+    hardware_api_token_id: "{{ api_token_id }}"
+    hardware_api_token_secret: "{{ api_token_secret }}"
+    hardware_validate_certs: "{{ validate_certs }}"
+    hardware_node: "{{ node }}"
+    hardware_vmid: "{{ _cs_guest_id }}"
+    hardware_kind: "{{ kind }}"
+    hardware_script: "{{ script }}"
+    hardware_script_override: "{{ script_override }}"
+    hardware_cores: "{{ settings.cores | default(none) }}"
+    hardware_memory: "{{ settings.memory | default(none) }}"
+    hardware_swap: "{{ settings.swap | default(none) }}"
+    hardware_sockets: "{{ settings.sockets | default(none) }}"
+    hardware_disk_gib: "{{ settings.disk_size | default(none) }}"
+    hardware_disk_key: "{{ disk_key | default(none) }}"
+  when:
+    - action == 'reconcile'
+    - (settings.keys() | list | intersect(['cores', 'memory', 'swap', 'sockets', 'disk_size']) | length) > 0
+
+- name: Manage Cloud-Init on an existing VM using community.proxmox
+  ansible.builtin.include_role:
+    name: mwyau.proxmox_community_scripts.cloud_init
+  vars:
+    cloud_init_api_host: "{{ api_host }}"
+    cloud_init_api_token_id: "{{ api_token_id }}"
+    cloud_init_api_token_secret: "{{ api_token_secret }}"
+    cloud_init_validate_certs: "{{ validate_certs }}"
+    cloud_init_node: "{{ node }}"
+    cloud_init_vmid: "{{ _cs_guest_id }}"
+    cloud_init_script: "{{ script }}"
+    cloud_init_script_override: "{{ script_override }}"
+    cloud_init_settings: "{{ cloud_init }}"
+    cloud_init_ssh: "{{ ssh }}"
+    cloud_init_apply_existing: "{{ configure_existing_cloud_init }}"
+  when:
+    - action == 'reconcile'
+    - kind == 'vm'
+    - configure_existing_cloud_init | bool
+
+- name: Capture public update options before entering internal update role
+  ansible.builtin.set_fact:
+    _cs_update_options:
+      request_id: "{{ update_request_id }}"
+      apply: "{{ update_apply }}"
+      backup: "{{ update_backup }}"
+      backup_storage: "{{ update_backup_storage }}"
+      accept_no_backup: "{{ update_accept_no_backup }}"
+  when: action == 'update'
+  no_log: true
+
+- name: Run explicit one-request LXC software update
+  ansible.builtin.include_role:
+    name: mwyau.proxmox_community_scripts.update
+  vars:
+    update_api_host: "{{ api_host }}"
+    update_api_token_id: "{{ api_token_id }}"
+    update_api_token_secret: "{{ api_token_secret }}"
+    update_validate_certs: "{{ validate_certs }}"
+    update_node: "{{ node }}"
+    update_vmid: "{{ _cs_guest_id }}"
+    update_script: "{{ script }}"
+    update_request_id: "{{ _cs_update_options.request_id }}"
+    update_scripts_ref: "{{ scripts_ref }}"
+    update_apply: "{{ _cs_update_options.apply }}"
+    update_backup: "{{ _cs_update_options.backup }}"
+    update_backup_storage: "{{ _cs_update_options.backup_storage }}"
+    update_accept_no_backup: "{{ _cs_update_options.accept_no_backup }}"
+  when:
+    - action == 'update'
+    - kind == 'lxc'
+
+- name: Refuse generic QEMU application updates
+  ansible.builtin.fail:
+    msg: Generic VM software updates have no shared Community Scripts updater; use an app-specific plugin.
+  when:
+    - action == 'update'
+    - kind == 'vm'

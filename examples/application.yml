@@ -1,0 +1,32 @@
+---
+# One user-facing role for inspect, present and explicit update.
+# Use an SSH inventory pointing to the PVE node; API requests run on controller.
+- name: Manage Community Scripts application on disposable Proxmox
+  hosts: pve
+  gather_facts: false
+  roles:
+    - role: mwyau.proxmox_community_scripts.application
+      vars:
+        action: present
+        api_host: pve.example.internal
+        api_token_id: "{{ lookup('ansible.builtin.env', 'PROXMOX_TOKEN_ID') }}"
+        api_token_secret: "{{ lookup('ansible.builtin.env', 'PROXMOX_TOKEN_SECRET') }}"
+        node: pve1
+        kind: lxc
+        ctid: 120
+        script: adguard
+        scripts_ref: '0123456789abcdef0123456789abcdef01234567'
+        core_ref: '0123456789abcdef0123456789abcdef01234567'
+        settings:
+          cores: 2
+          memory: 1024
+          disk_size: 8
+          bridge: vmbr0
+          os: debian
+          os_version: 13
+        install: false
+        accept_unverified_install: false
+
+# For an application update, set action: update and a unique
+# update_request_id. Also provide update_backup_storage.
+# update_apply remains false until explicitly approved.

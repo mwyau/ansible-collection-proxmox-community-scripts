@@ -1,0 +1,22 @@
+---
+# Inventory:
+# community_lxc:
+#   hosts:
+#     adguard:
+#       ansible_host: pve.example.internal
+#       proxmox_vmid: 120
+#       ansible_connection: community.proxmox.proxmox_pct_remote
+#       ansible_user: root
+#
+# No guest SSH server or guest SSH private key is required.
+- name: Enable SSH and install public keys on an existing LXC
+  hosts: community_lxc
+  gather_facts: false
+  become: false
+  roles:
+    - role: mwyau.proxmox_community_scripts.guest_ssh
+      vars:
+        guest_ssh:
+          enabled: true
+          public_keys:
+            - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPUFcMCRObddaMmvUDio11yge6gRGXNv3uqMq7ve0x3 example"

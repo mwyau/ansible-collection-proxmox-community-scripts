@@ -1,4 +1,8 @@
-"""Pure Community Scripts catalog parsing and change detection."""
+"""Self-contained Ansible runtime catalog adapter.
+
+Bulk upstream scans and advisory recipe status live in proxmox-community-scripts-iac-common.
+This small parser stays bundled so Ansible Galaxy installations work offline.
+"""
 import re
 
 try:

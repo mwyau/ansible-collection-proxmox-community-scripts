@@ -33,17 +33,11 @@ Run `python -m unittest discover -s tests -v` and `python -m compileall -q plugi
 Not affiliated with Proxmox Server Solutions or the Community Scripts maintainers. Proxmox is a trademark of its respective owner. MIT licensed.
 
 
-## Upstream script validation in GitHub Actions
-The `Upstream script compatibility` workflow can be triggered manually with `kind=lxc` or `kind=vm` and an optional single `slug`. It also scans all `ct/` and `vm/` scripts weekly and on pull requests.
+## Read-only recipe status
 
-The workflow clones upstream scripts and Core. It parses the shared engine entry points, scans matching `install/*-install.sh` payloads and potential prompt sites, checks shell syntax using `bash -n`, and uploads `compatibility.json` and `compatibility.md`. No downloaded installer or updater is executed. Both upstream Git revisions are recorded; syntax failures fail the workflow.
+Source scanning, script retirement analysis and recipe status have moved to [proxmox-community-scripts-iac-common](https://github.com/mwyau/proxmox-community-scripts-iac-common/tree/feat/recipe-scanner-status). That repository owns the weekly scan and `recipes.json` status artifact, including script and Core revision SHAs, syntax, potential prompt sites and VM field-use evidence. It **does not** certify unattended installation.
 
-Individual script example after cloning upstream:
-```bash
-python scripts/scan_community_scripts.py --source upstream-scripts \
-  --core upstream-core --kind lxc --script adguard --output out
-```
-The categories distinguish shared Core entry points, application prompts that appear update-only or wizard-only, installation-input candidates, and custom entry points. Function scopes are approximate; none of these categories certifies unattended behavior. For testing on a disposable Proxmox VM, including nested KVM only for VM guests, see [TESTING.md](TESTING.md).
+This Ansible collection retains its `script_catalog`, retirement and provenance utilities because Galaxy collections must work independently with no common-repository runtime dependency. A requested installation still checks its exact pinned script; cached catalog status is never authorization to run an installer. This repo continues to test its own application and hardware mappings.
 
 ## Application updates
 The upstream Proxmox-host `tools/pve/update-apps.sh` can select individual LXCs with `var_container=<CTID>` and uses `var_unattended=yes` for unattended execution. Use a controlled Ansible SSH connection to the PVE host with privilege escalation, and a reviewed pinned updater source. An API token is insufficient for this host-side command.

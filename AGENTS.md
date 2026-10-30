@@ -41,7 +41,7 @@ Keep documentation concise, precise, and explicit about tested versus planned ca
 
 
 ## Script validation
-The upstream compatibility workflow and `scripts/scan_community_scripts.py` are **static-only**: execute `bash -n` on script files but never source or run downloaded installers/updaters in GitHub Actions. A syntax pass or presence of `VM_UNATTENDED` is not proof of unattended support. Record both upstream revision IDs and require disposable PVE tests for each script before certifying deployment.
+Upstream recipe scanning now lives in `mwyau/proxmox-community-scripts-iac-common` and is **static-only**: run `bash -n`, never source or run downloaded installers/updaters in GitHub Actions. Keep this collection's pinned-source and provenance validation self-contained. A syntax pass or presence of `VM_UNATTENDED` is not proof of unattended support. Record both upstream revision IDs and require disposable PVE tests for each script before certifying deployment.
 
 The host-side LXC updater's `var_dry_run=yes` is not a strict no-op: it may start containers or repair legacy update files. Never call it from Ansible check mode. Do not let an application updater silently overwrite independently managed hardware settings.
 

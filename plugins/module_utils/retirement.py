@@ -1,5 +1,8 @@
 """Conservative, read-only detection of retired Community Scripts entrypoints.
 
+Also used by the read-only scan in proxmox-community-scripts-iac-common;
+keep local confirmation here because install decisions must not trust stale status.
+
 A missing build lifecycle is necessary but not sufficient: require an explicit
 retirement/rename notice and an unconditional nonzero exit. This identifies
 removal stubs without treating ordinary app updates as retired.

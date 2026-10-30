@@ -169,3 +169,7 @@ Public guest identity is `vm_id` for both LXC and VM, matching bpg/proxmox. Terr
 
 ## Current API names (bpg/proxmox compatibility)
 The **public** `application` role expects `endpoint`, `api_token` (`id=secret`), `insecure` (false by default), `node_name`, and a single `vm_id` for both kinds. Normalized creation settings include `datastore_id`, `vlan_id`, `mac_address`, `unprivileged`, and VM `started`. In particular, `settings.unprivileged=true` means `var_unprivileged=1` in Core. The older names `ctid`, `vmid`, `node`, `api_host`, `api_token_id`, `api_token_secret`, `validate_certs`, `storage`, `vlan`, `mac`, `privileged`, and `start` are **not** accepted in the public application role / normalized creation settings. Lower-level Ansible modules retain their established API arguments. This section supersedes earlier public-facade examples or design notes.
+
+
+## Extraction of shared read-only recipe analysis
+The weekly recipe scanner, prompt evidence, retirement-report synthesis and resulting status index live in `mwyau/proxmox-community-scripts-iac-common` (`feat/recipe-scanner-status` during extraction). This collection retains its independent `script_catalog`, retirement checks, VM-specific source evidence and installed guest safety gates. Do not add runtime dependencies on scan artifacts or assume source analysis proves installation.

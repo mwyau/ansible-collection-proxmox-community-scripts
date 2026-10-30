@@ -16,20 +16,9 @@ Static scan categories are **not** success/failure of unattended installation. T
 
 ## Run static checks
 
-GitHub Actions: **Upstream script compatibility** (weekly, PR, or manually dispatched once the workflow is available on the default branch). The dispatch accepts `kind`, optional `slug`, and upstream scripts `ref`. It records both Core and application Git commit IDs and emits `out/compatibility.json` and `out/compatibility.md`. Syntax errors fail the workflow. This workflow does not run privileged software or require any Proxmox secrets.
+Static recipe scanning is maintained by [proxmox-community-scripts-iac-common](https://github.com/mwyau/proxmox-community-scripts-iac-common/tree/feat/recipe-scanner-status). Its `Upstream recipe scan` workflow runs weekly or on demand, recording immutable upstream revisions in `compatibility.json` and advisory `recipes.json`. The result is an artifact, not a deployment certification. No downloaded installer executes.
 
-Local single-script example after checking out both upstream repositories:
-
-```bash
-python scripts/scan_community_scripts.py \
-    --source upstream-scripts --core upstream-core \
-    --kind lxc --script adguard \
-    --scripts-rev "$(git -C upstream-scripts rev-parse HEAD)" \
-    --core-rev "$(git -C upstream-core rev-parse HEAD)" \
-    --strict-syntax --output out
-```
-
-Review the `prompt_sites`, `flags`, and `defaulted_variables` for each application; compare actual declared Core variables before enabling creation.
+Run `python -m unittest discover -s tests -v` here for Ansible runtime decisions. This collection's separate `Upstream Core mapping` workflow verifies Ansible-specific normalization against current Core; common does not own field mappings.
 
 ## Disposable Proxmox integration host
 

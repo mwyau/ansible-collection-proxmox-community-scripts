@@ -1,0 +1,33 @@
+name: Upstream Core mapping
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '28 5 * * 1'
+permissions:
+  contents: read
+jobs:
+  core-mapping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Clone upstream Core for read-only mapping verification
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 https://github.com/community-scripts/core.git upstream-core
+          echo "CORE_SHA=$(git -C upstream-core rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Check normalized settings against shared Core
+        run: |
+          python -m scripts.verify_core_mapping --core upstream-core > core-mapping.json
+          echo "Upstream Core: $CORE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          cat core-mapping.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upstream-core-mapping
+          path: core-mapping.json
+          retention-days: 30
+          if-no-files-found: warn

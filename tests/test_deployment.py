@@ -34,7 +34,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(env["var_ram"], "2048")
         self.assertEqual(env["var_disk"], "8")
         self.assertEqual(env["var_vlan"], "12")
-        self.assertEqual(env["var_unprivileged"], "1")
+        self.assertEqual(env["var_unprivileged"], "0")
         self.assertIn(SCRIPT_SHA, env["COMMUNITY_SCRIPTS_URL"])
         self.assertIn(CORE_SHA, env["COMMUNITY_SCRIPTS_CORE_URL"])
 

@@ -249,3 +249,7 @@ For already existing guests, neither pinned source revision is required. `action
 - `update`: explicit LXC application update request, independent of hardware configuration.
 
 The former `manage_hardware` toggle has been removed: it was too easy to apply fleet-wide defaults to existing containers unintentionally. No action automatically deletes, shrinks disks or reboots guests. `script_vars` remains the full-name passthrough for application installer variables (e.g. `var_x`, `VM_X`, `APP_X`).
+
+
+## Current API names (bpg/proxmox compatibility)
+The **public** `application` role expects `endpoint`, `api_token` (`id=secret`), `insecure` (false by default), `node_name`, and a single `vm_id` for both kinds. Normalized creation settings include `datastore_id`, `vlan_id`, `mac_address`, `unprivileged`, and VM `started`. In particular, `settings.unprivileged=true` means `var_unprivileged=1` in Core. The older names `ctid`, `vmid`, `node`, `api_host`, `api_token_id`, `api_token_secret`, `validate_certs`, `storage`, `vlan`, `mac`, `privileged`, and `start` are **not** accepted in the public application role / normalized creation settings. Lower-level Ansible modules retain their established API arguments. This section supersedes earlier public-facade examples or design notes.

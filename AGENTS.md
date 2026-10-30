@@ -83,3 +83,7 @@ The `application` role uses `inspect`, `present`, `reconcile`, `update`. The ear
 ## Explicit LXC and VM identity (supersedes earlier vmid-only guidance)
 - Public Ansible application role: `ctid` for LXC, `vmid` for VM; exactly one. `var_ctid` is LXC Core's internal variable. The same mutually exclusive inputs are used by the Terraform guest resource; Terraform `id` stays a computed state/import identity `lxc/<ctid>` or `vm/<vmid>`.
 - Reflect the mutually exclusive identity rule in `contracts/guest.v1.json`, public examples, and tests. Avoid an additional `id` creation alias.
+
+
+## Current API names (bpg/proxmox compatibility)
+The **public** `application` role expects `endpoint`, `api_token` (`id=secret`), `insecure` (false by default), `node_name`, and a single `vm_id` for both kinds. Normalized creation settings include `datastore_id`, `vlan_id`, `mac_address`, `unprivileged`, and VM `started`. In particular, `settings.unprivileged=true` means `var_unprivileged=1` in Core. The older names `ctid`, `vmid`, `node`, `api_host`, `api_token_id`, `api_token_secret`, `validate_certs`, `storage`, `vlan`, `mac`, `privileged`, and `start` are **not** accepted in the public application role / normalized creation settings. Lower-level Ansible modules retain their established API arguments. This section supersedes earlier public-facade examples or design notes.

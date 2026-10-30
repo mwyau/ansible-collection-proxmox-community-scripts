@@ -22,9 +22,9 @@ class DeploymentTests(unittest.TestCase):
     def test_lxc_overrides(self):
         settings = {
             "cores": 2, "memory": 2048, "disk_size": 8,
-            "hostname": "adguard", "bridge": "vmbr1", "vlan": 12,
+            "hostname": "adguard", "bridge": "vmbr1", "vlan_id": 12,
             "os": "debian", "os_version": 13,
-            "ipv4": "dhcp", "ipv6_method": "auto", "privileged": False,
+            "ipv4": "dhcp", "ipv6_method": "auto", "unprivileged": False,
         }
         fields = validate_spec("lxc", "adguard", 120, SCRIPT_SHA, CORE_SHA, settings)
         env = create_environment("lxc", 120, SCRIPT_SHA, CORE_SHA, settings, fields)
@@ -41,7 +41,7 @@ class DeploymentTests(unittest.TestCase):
     def test_vm_overrides(self):
         settings = {
             "cores": 4, "memory": 8192, "disk_size": 32, "hostname": "homeassistant",
-            "storage": "local-lvm", "bridge": "vmbr0", "start": False,
+            "datastore_id": "local-lvm", "bridge": "vmbr0", "started": False,
         }
         validate_spec("vm", "haos-vm", 121, SCRIPT_SHA, CORE_SHA, settings)
         env = create_environment("vm", 121, SCRIPT_SHA, CORE_SHA, settings)
@@ -67,7 +67,7 @@ class DeploymentTests(unittest.TestCase):
 
     def test_extended_core_network_dns_and_lxc_features(self):
         settings = {
-            "mac": "02:12:34:56:78:9a", "mtu": 1500,
+            "mac_address": "02:12:34:56:78:9a", "mtu": 1500,
             "dns": "1.1.1.1", "searchdomain": "lab.example",
             "timezone": "America/New_York",
             "nesting": 1, "protection": False, "sdn_vnet": "vnet1",
@@ -79,7 +79,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(env["var_nesting"], "1")
         with self.assertRaises(ProxmoxError):
             validate_spec("lxc", "adguard", 120, SCRIPT_SHA, CORE_SHA,
-                          {"mac": "not-mac"})
+                          {"mac_address": "not-mac"})
         with self.assertRaises(ProxmoxError):
             validate_spec("lxc", "adguard", 120, SCRIPT_SHA, CORE_SHA,
                           {"nesting": "suspicious"})
@@ -97,7 +97,7 @@ class DeploymentTests(unittest.TestCase):
 
         vm = {"cores": 4, "memory": 2048, "disk_size": 30,
               "cpu_type": "host", "disk_cache": "writethrough",
-              "machine": "q35", "storage": "local-lvm", "bridge": "vmbr0"}
+              "machine": "q35", "datastore_id": "local-lvm", "bridge": "vmbr0"}
         validate_spec("vm", "ubuntu-vm", 121, SCRIPT_SHA, CORE_SHA, vm)
         env = create_environment("vm", 121, SCRIPT_SHA, CORE_SHA, vm)
         self.assertEqual(env["VM_CPU"], "host")
@@ -114,7 +114,7 @@ class DeploymentTests(unittest.TestCase):
             ("vm", {"cpu_type": "EPYC"}),
             ("vm", {"disk_cache": "writeback"}),
             ("vm", {"machine": "surprise"}),
-            ("lxc", {"vlan": 4095}),
+            ("lxc", {"vlan_id": 4095}),
             ("lxc", {"ipv6_method": "static"}),
         ):
             with self.subTest(kind=kind, values=unsupported):

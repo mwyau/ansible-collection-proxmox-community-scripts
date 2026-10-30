@@ -3,14 +3,12 @@
   "contract_id": "mwyau.proxmox_community_scripts.guest",
   "definition": "Shared public creation vocabulary and upstream Core environment mappings; Terraform lifecycle and Ansible actions remain distinct.",
   "common_inputs": [
-    "api_host",
-    "api_token_id",
-    "api_token_secret",
-    "validate_certs",
-    "node",
+    "endpoint",
+    "api_token",
+    "insecure",
+    "node_name",
+    "vm_id",
     "kind",
-    "ctid",
-    "vmid",
     "script",
     "scripts_ref",
     "core_ref",
@@ -33,16 +31,12 @@
     "disk_size": "var_disk",
     "hostname": "var_hostname",
     "bridge": "var_brg",
-    "vlan": "var_vlan",
-    "storage": "var_container_storage",
     "template_storage": "var_template_storage",
     "os": "var_os",
     "os_version": "var_version",
-    "privileged": "var_unprivileged",
     "ipv4": "var_net",
     "gateway": "var_gateway",
     "ipv6_method": "var_ipv6_method",
-    "mac": "var_mac",
     "mtu": "var_mtu",
     "dns": "var_ns",
     "searchdomain": "var_searchdomain",
@@ -61,7 +55,11 @@
     "inherit_host_ca": "var_inherit_host_ca",
     "sdn_vnet": "var_sdn_vnet",
     "http_proxy": "var_http_proxy",
-    "http_no_proxy": "var_http_no_proxy"
+    "http_no_proxy": "var_http_no_proxy",
+    "datastore_id": "var_container_storage",
+    "vlan_id": "var_vlan",
+    "mac_address": "var_mac",
+    "unprivileged": "var_unprivileged"
   },
   "vm_fields": {
     "cores": "VM_CORES",
@@ -69,15 +67,15 @@
     "disk_size": "VM_DISK_SIZE",
     "hostname": "VM_HOSTNAME",
     "bridge": "VM_BRIDGE",
-    "vlan": "VM_VLAN",
-    "storage": "VM_STORAGE",
-    "mac": "VM_MAC",
     "mtu": "VM_MTU",
     "cpu_type": "VM_CPU",
     "machine": "VM_MACHINE",
-    "start": "VM_START",
     "disk_cache": "VM_DISK_CACHE",
-    "timezone": "VM_TIMEZONE"
+    "timezone": "VM_TIMEZONE",
+    "datastore_id": "VM_STORAGE",
+    "vlan_id": "VM_VLAN",
+    "mac_address": "VM_MAC",
+    "started": "VM_START"
   },
   "encoding_cases": [
     {
@@ -86,7 +84,7 @@
         "cores": "2",
         "memory": "2048",
         "disk_size": "8",
-        "privileged": "true",
+        "unprivileged": "true",
         "nesting": "false",
         "tun": "true",
         "gpu": "false"
@@ -109,7 +107,7 @@
         "disk_size": "8",
         "cpu_type": "host",
         "machine": "q35",
-        "start": "false",
+        "started": "false",
         "disk_cache": "none"
       },
       "expected_env": {
@@ -125,16 +123,15 @@
   ],
   "identity": {
     "lxc": {
-      "required": "ctid",
-      "forbidden": "vmid",
-      "state_id": "lxc/<ctid>"
+      "required": "vm_id",
+      "state_id": "lxc/<vm_id>"
     },
     "vm": {
-      "required": "vmid",
-      "forbidden": "ctid",
-      "state_id": "vm/<vmid>"
+      "required": "vm_id",
+      "state_id": "vm/<vm_id>"
     },
     "internal_cluster_identifier": "vmid",
-    "description": "Proxmox cluster IDs share the same global number space; public inputs depend on guest type."
-  }
+    "description": "Same public vm_id for both kinds, as in bpg/proxmox. Proxmox IDs are cluster-global; Terraform id remains type-qualified."
+  },
+  "naming_reference": "bpg/proxmox: endpoint, api_token, insecure, node_name, vm_id, mac_address, vlan_id, datastore_id, unprivileged and started. Flat settings remain Community Scripts-specific."
 }

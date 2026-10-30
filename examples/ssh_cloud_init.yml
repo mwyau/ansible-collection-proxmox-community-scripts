@@ -6,13 +6,12 @@
     - role: mwyau.proxmox_community_scripts.application
       vars:
         action: present
-        api_host: pve.example.internal
-        api_token_id: "{{ lookup('env', 'PROXMOX_TOKEN_ID') }}"
-        api_token_secret: "{{ lookup('env', 'PROXMOX_TOKEN_SECRET') }}"
-        node: pve1
+        endpoint: pve.example.internal
+        api_token: "{{ lookup('env', 'PROXMOX_VE_API_TOKEN') }}"
+        node_name: pve1
         kind: lxc
         script: adguard
-        ctid: 120
+        vm_id: 120
         scripts_ref: '0123456789abcdef0123456789abcdef01234567'
         core_ref: '0123456789abcdef0123456789abcdef01234567'
         settings:
@@ -35,20 +34,19 @@
     - role: mwyau.proxmox_community_scripts.application
       vars:
         action: present
-        api_host: pve.example.internal
-        api_token_id: "{{ lookup('env', 'PROXMOX_TOKEN_ID') }}"
-        api_token_secret: "{{ lookup('env', 'PROXMOX_TOKEN_SECRET') }}"
-        node: pve1
+        endpoint: pve.example.internal
+        api_token: "{{ lookup('env', 'PROXMOX_VE_API_TOKEN') }}"
+        node_name: pve1
         kind: vm
         script: ubuntu-vm
-        vmid: 121
+        vm_id: 121
         scripts_ref: '0123456789abcdef0123456789abcdef01234567'
         core_ref: '0123456789abcdef0123456789abcdef01234567'
         settings:
           cores: 2
           memory: 4096
           disk_size: 32
-          storage: local-lvm
+          datastore_id: local-lvm
         ssh:
           enabled: true
           public_keys:

@@ -5,19 +5,29 @@
       - action in ['inspect', 'present', 'reconcile', 'update']
       - kind in ['lxc', 'vm']
       - script | regex_search('^[a-z0-9][a-z0-9-]*$') is not none
-      - (kind == 'lxc' and ctid is not none and vmid is none) or (kind == 'vm' and vmid is not none and ctid is none)
-      - ctid is none or (ctid | string) is match('^[0-9]+$')
-      - vmid is none or (vmid | string) is match('^[0-9]+$')
-      - (ctid if kind == 'lxc' else vmid) | int >= 100
-      - (ctid if kind == 'lxc' else vmid) | int <= 999999999
-      - node | length > 0
+      - vm_id is not none and (vm_id | string) is match('^[0-9]+$')
+      - vm_id | int >= 100
+      - vm_id | int <= 999999999
+      - node_name | length > 0
+      - endpoint | length > 0
+      - api_token is string
+      - (api_token | split('=', 1) | length) == 2
+      - (api_token | split('=', 1) | first | length) > 0
+      - (api_token | split('=', 1) | last | length) > 0
       - script_override | length == 0 or script_override == script
       - action != 'update' or script_override | length == 0
-    fail_msg: Specify ctid for LXC or vmid for VM, never both; validate type, ID, and script.
+    fail_msg: Supply vm_id, node_name, endpoint and api_token in id=secret format.
 
 - name: Set canonical cluster VMID for Proxmox API and internal roles
   ansible.builtin.set_fact:
-    _cs_guest_id: "{{ ctid if kind == 'lxc' else vmid }}"
+    _cs_guest_id: "{{ vm_id }}"
+
+- name: Normalize bpg-style authentication for internal modules
+  ansible.builtin.set_fact:
+    _cs_api_token_id: "{{ (api_token | split('=', 1))[0] }}"
+    _cs_api_token_secret: "{{ (api_token | split('=', 1))[1] }}"
+    _cs_validate_certs: "{{ not (insecure | bool) }}"
+  no_log: true
 
 - name: Resolve guest-specific resource configuration
   ansible.builtin.import_tasks: resolve_settings.yml
@@ -26,11 +36,11 @@
   ansible.builtin.include_role:
     name: mwyau.proxmox_community_scripts.provenance
   vars:
-    provenance_api_host: "{{ api_host }}"
-    provenance_api_token_id: "{{ api_token_id }}"
-    provenance_api_token_secret: "{{ api_token_secret }}"
-    provenance_validate_certs: "{{ validate_certs }}"
-    provenance_node: "{{ node }}"
+    provenance_api_host: "{{ endpoint }}"
+    provenance_api_token_id: "{{ _cs_api_token_id }}"
+    provenance_api_token_secret: "{{ _cs_api_token_secret }}"
+    provenance_validate_certs: "{{ _cs_validate_certs }}"
+    provenance_node: "{{ node_name }}"
     provenance_vmid: "{{ _cs_guest_id }}"
     provenance_kind: "{{ kind }}"
     provenance_expected_script: "{{ script }}"
@@ -47,7 +57,7 @@
     msg:
       vmid: "{{ _cs_guest_id }}"
       kind: "{{ kind }}"
-      node: "{{ node }}"
+      node: "{{ node_name }}"
       script: "{{ community_scripts_provenance.script }}"
       identity_status: "{{ community_scripts_provenance.status }}"
       identity_evidence: "{{ community_scripts_provenance.evidence | map(attribute='source') | list }}"
@@ -62,11 +72,11 @@
   ansible.builtin.include_role:
     name: mwyau.proxmox_community_scripts.deploy
   vars:
-    deploy_api_host: "{{ api_host }}"
-    deploy_api_token_id: "{{ api_token_id }}"
-    deploy_api_token_secret: "{{ api_token_secret }}"
-    deploy_validate_certs: "{{ validate_certs }}"
-    deploy_node: "{{ node }}"
+    deploy_api_host: "{{ endpoint }}"
+    deploy_api_token_id: "{{ _cs_api_token_id }}"
+    deploy_api_token_secret: "{{ _cs_api_token_secret }}"
+    deploy_validate_certs: "{{ _cs_validate_certs }}"
+    deploy_node: "{{ node_name }}"
     deploy_kind: "{{ kind }}"
     deploy_script: "{{ script }}"
     deploy_script_override: "{{ script_override }}"
@@ -98,11 +108,11 @@
   ansible.builtin.include_role:
     name: mwyau.proxmox_community_scripts.hardware
   vars:
-    hardware_api_host: "{{ api_host }}"
-    hardware_api_token_id: "{{ api_token_id }}"
-    hardware_api_token_secret: "{{ api_token_secret }}"
-    hardware_validate_certs: "{{ validate_certs }}"
-    hardware_node: "{{ node }}"
+    hardware_api_host: "{{ endpoint }}"
+    hardware_api_token_id: "{{ _cs_api_token_id }}"
+    hardware_api_token_secret: "{{ _cs_api_token_secret }}"
+    hardware_validate_certs: "{{ _cs_validate_certs }}"
+    hardware_node: "{{ node_name }}"
     hardware_vmid: "{{ _cs_guest_id }}"
     hardware_kind: "{{ kind }}"
     hardware_script: "{{ script }}"
@@ -121,11 +131,11 @@
   ansible.builtin.include_role:
     name: mwyau.proxmox_community_scripts.cloud_init
   vars:
-    cloud_init_api_host: "{{ api_host }}"
-    cloud_init_api_token_id: "{{ api_token_id }}"
-    cloud_init_api_token_secret: "{{ api_token_secret }}"
-    cloud_init_validate_certs: "{{ validate_certs }}"
-    cloud_init_node: "{{ node }}"
+    cloud_init_api_host: "{{ endpoint }}"
+    cloud_init_api_token_id: "{{ _cs_api_token_id }}"
+    cloud_init_api_token_secret: "{{ _cs_api_token_secret }}"
+    cloud_init_validate_certs: "{{ _cs_validate_certs }}"
+    cloud_init_node: "{{ node_name }}"
     cloud_init_vmid: "{{ _cs_guest_id }}"
     cloud_init_script: "{{ script }}"
     cloud_init_script_override: "{{ script_override }}"
@@ -152,11 +162,11 @@
   ansible.builtin.include_role:
     name: mwyau.proxmox_community_scripts.update
   vars:
-    update_api_host: "{{ api_host }}"
-    update_api_token_id: "{{ api_token_id }}"
-    update_api_token_secret: "{{ api_token_secret }}"
-    update_validate_certs: "{{ validate_certs }}"
-    update_node: "{{ node }}"
+    update_api_host: "{{ endpoint }}"
+    update_api_token_id: "{{ _cs_api_token_id }}"
+    update_api_token_secret: "{{ _cs_api_token_secret }}"
+    update_validate_certs: "{{ _cs_validate_certs }}"
+    update_node: "{{ node_name }}"
     update_vmid: "{{ _cs_guest_id }}"
     update_script: "{{ script }}"
     update_request_id: "{{ _cs_update_options.request_id }}"

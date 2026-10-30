@@ -37,18 +37,15 @@ class SharedContractTests(unittest.TestCase):
                     set(case["expected_env"]),
                 )
 
-    def test_facade_requires_ctid_for_lxc_vmid_for_vm(self):
+    def test_bpg_style_facade_and_shared_contract(self):
         defaults = (ROOT / "roles/application/defaults/main.yml").read_text()
-        keys = {line.split(":", 1)[0] for line in defaults.splitlines()
-                if line and not line.startswith((" ", "#", "-")) and ":" in line}
-        self.assertIn("ctid", keys)
+        keys = {line.split(":", 1)[0] for line in defaults.splitlines() if line and not line.startswith((" ", "#", "-")) and ":" in line}
         self.assertTrue(set(CONTRACT["common_inputs"]).issubset(keys))
+        self.assertEqual(CONTRACT["identity"]["lxc"]["required"], "vm_id")
+        self.assertEqual(CONTRACT["identity"]["vm"]["required"], "vm_id")
         role = (ROOT / "roles/application/tasks/main.yml").read_text()
-        self.assertIn('_cs_guest_id: "{{ ctid if kind == \'lxc\' else vmid }}"', role)
-        self.assertIn("kind == 'lxc' and ctid is not none and vmid is none", role)
-        self.assertIn("kind == 'vm' and vmid is not none and ctid is none", role)
-        self.assertEqual(CONTRACT["identity"]["lxc"]["required"],"ctid")
-        self.assertEqual(CONTRACT["identity"]["vm"]["required"],"vmid")
+        self.assertIn('_cs_guest_id: "{{ vm_id }}"', role)
+        self.assertIn("vm_id is not none", role)
         self.assertIn('update_scripts_ref: "{{ update_scripts_ref }}"', role)
 
 if __name__ == "__main__":

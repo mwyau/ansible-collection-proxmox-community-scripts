@@ -7,11 +7,11 @@
     guest_defaults:
       all:
         bridge: vmbr0
-        storage: common-pool
+        datastore_id: common-pool
         cores: 2
         memory: 1024
       lxc:
-        storage: lxc-pool
+        datastore_id: lxc-pool
         memory: 2048
       vm:
         memory: 4096
@@ -25,16 +25,16 @@
         kind: lxc
         settings:
           memory: 3072
-          vlan: 42
+          vlan_id: 42
 
     - name: Verify explicit values override LXC and global user defaults
       ansible.builtin.assert:
         that:
           - _cs_effective_settings.cores == 2
           - _cs_effective_settings.memory == 3072
-          - _cs_effective_settings.storage == 'lxc-pool'
+          - _cs_effective_settings.datastore_id == 'lxc-pool'
           - _cs_effective_settings.bridge == 'vmbr0'
-          - _cs_effective_settings.vlan == 42
+          - _cs_effective_settings.vlan_id == 42
           - "'hostname' not in _cs_effective_settings"
           - "'disk_size' not in _cs_effective_settings"
 
@@ -51,7 +51,7 @@
         that:
           - _cs_effective_settings.cores == 2
           - _cs_effective_settings.memory == 4096
-          - _cs_effective_settings.storage == 'common-pool'
+          - _cs_effective_settings.datastore_id == 'common-pool'
           - _cs_effective_settings.bridge == 'vmbr0'
           - _cs_effective_settings.disk_size == 32
           - "'hostname' not in _cs_effective_settings"

@@ -6,18 +6,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PublicRoleTests(unittest.TestCase):
-    def test_only_short_public_names(self):
+    def test_bpg_style_public_names(self):
         defaults = (ROOT / "roles/application/defaults/main.yml").read_text()
-        for name in ("action", "api_host", "kind", "script", "script_override",
-                     "ctid", "vmid", "settings", "ssh", "cloud_init"):
+        for name in ("action", "endpoint", "api_token", "insecure", "node_name", "vm_id", "kind", "script", "settings", "ssh", "cloud_init"):
             self.assertIn("\n" + name + ":", defaults)
-        self.assertNotIn("\napplication_", defaults)
-        self.assertIn("\nctid:", defaults)
-        self.assertIn("vmid: null", defaults)
+        for name in ("ctid", "vmid", "node", "api_host", "api_token_id", "api_token_secret", "validate_certs"):
+            self.assertNotIn("\n" + name + ":", defaults)
         tasks = (ROOT / "roles/application/tasks/main.yml").read_text()
-        self.assertIn("kind == 'lxc' and ctid is not none and vmid is none", tasks)
-        self.assertIn("kind == 'vm' and vmid is not none and ctid is none", tasks)
-        self.assertIn('_cs_guest_id: "{{ ctid if kind == \'lxc\' else vmid }}"', tasks)
+        self.assertIn("vm_id is not none", tasks)
+        self.assertIn('_cs_guest_id: "{{ vm_id }}"', tasks)
         self.assertIn('update_scripts_ref: "{{ update_scripts_ref }}"', tasks)
 
     def test_manual_override_propagates_to_all_existing_guest_paths(self):

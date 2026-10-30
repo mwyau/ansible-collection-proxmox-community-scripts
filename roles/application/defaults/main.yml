@@ -1,15 +1,13 @@
 ---
 # Public facade. One guest, one application and one explicit action.
 action: inspect  # inspect, present, reconcile or update
-api_host: ""
-api_token_id: ""
-api_token_secret: ""
-validate_certs: true
-node: ""
+endpoint: ""
+api_token: ""
+insecure: false
+node_name: ""
 kind: lxc
 script: ""
-ctid: null  # LXC ID; mutually exclusive with VM vmid
-vmid: null  # VM ID; mutually exclusive with LXC ctid
+vm_id: null  # Cluster-global ID for LXC and VM
 scripts_ref: ""
 core_ref: ""
 settings: {}  # cores, memory (MiB), disk_size (GiB), bridge, storage, etc.

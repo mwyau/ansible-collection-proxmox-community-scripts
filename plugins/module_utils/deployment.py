@@ -17,12 +17,12 @@ NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,62}$")
 # Keep the mappings explicit: unknown properties must fail, never be ignored.
 LXC_FIELDS = {
     "cores": "var_cpu", "memory": "var_ram", "disk_size": "var_disk",
-    "hostname": "var_hostname", "bridge": "var_brg", "vlan": "var_vlan",
-    "storage": "var_container_storage", "template_storage": "var_template_storage",
-    "os": "var_os", "os_version": "var_version", "privileged": "var_unprivileged",
+    "hostname": "var_hostname", "bridge": "var_brg", "vlan_id": "var_vlan",
+    "datastore_id": "var_container_storage", "template_storage": "var_template_storage",
+    "os": "var_os", "os_version": "var_version", "unprivileged": "var_unprivileged",
     "ipv4": "var_net", "gateway": "var_gateway",
     "ipv6_method": "var_ipv6_method",
-    "mac": "var_mac", "mtu": "var_mtu", "dns": "var_ns",
+    "mac_address": "var_mac", "mtu": "var_mtu", "dns": "var_ns",
     "searchdomain": "var_searchdomain", "timezone": "var_timezone",
     "tags": "var_tags",
     "protection": "var_protection", "nesting": "var_nesting",
@@ -35,9 +35,9 @@ LXC_FIELDS = {
 }
 VM_FIELDS = {
     "cores": "VM_CORES", "memory": "VM_RAM", "disk_size": "VM_DISK_SIZE",
-    "hostname": "VM_HOSTNAME", "bridge": "VM_BRIDGE", "vlan": "VM_VLAN",
-    "storage": "VM_STORAGE", "mac": "VM_MAC", "mtu": "VM_MTU",
-    "cpu_type": "VM_CPU", "machine": "VM_MACHINE", "start": "VM_START",
+    "hostname": "VM_HOSTNAME", "bridge": "VM_BRIDGE", "vlan_id": "VM_VLAN",
+    "datastore_id": "VM_STORAGE", "mac_address": "VM_MAC", "mtu": "VM_MTU",
+    "cpu_type": "VM_CPU", "machine": "VM_MACHINE", "started": "VM_START",
     "disk_cache": "VM_DISK_CACHE", "timezone": "VM_TIMEZONE",
 }
 
@@ -91,8 +91,8 @@ def validate_script_vars(kind, script_vars, standard_env):
         result[key] = converted
     return result
 
-NUMERIC = frozenset({"cores", "memory", "disk_size", "vlan", "mtu"})
-BOOL = frozenset({"privileged", "start"})
+NUMERIC = frozenset({"cores", "memory", "disk_size", "vlan_id", "mtu"})
+BOOL = frozenset({"unprivileged", "started"})
 BINARY = frozenset({"nesting", "keyctl", "mknod"})
 LXC_YESNO = frozenset({"tun", "fuse", "protection", "gpu", "apt_cacher", "inherit_host_ca"})
 # vm_apply_env_overrides evaluates VM_CPU only as host vs its default.
@@ -125,7 +125,7 @@ def validate_spec(kind, script, vmid, scripts_ref, core_ref, settings, require_p
             raise ProxmoxError("Creation setting %s requires a scalar" % key)
         if key in BINARY and value not in (0, 1, "0", "1", False, True, "true", "false", "yes", "no"):
             raise ProxmoxError("Invalid binary creation field: %s" % key)
-        if key == "mac" and not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", str(value)):
+        if key == "mac_address" and not re.fullmatch(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}", str(value)):
             raise ProxmoxError("Invalid MAC address")
         if key in LXC_YESNO and value not in (True, False, "true", "false", "yes", "no", 0, 1, "0", "1"):
             raise ProxmoxError("Invalid yes/no creation field: %s" % key)
@@ -138,9 +138,9 @@ def validate_spec(kind, script, vmid, scripts_ref, core_ref, settings, require_p
         if key == "ipv6_method" and value not in ("none", "auto", "dhcp"):
             raise ProxmoxError("Static IPv6 requires verified upstream Core wiring")
         if key in NUMERIC:
-            if isinstance(value, bool) or not str(value).isdigit() or int(value) < (0 if key == "vlan" else 1):
+            if isinstance(value, bool) or not str(value).isdigit() or int(value) < (0 if key == "vlan_id" else 1):
                 raise ProxmoxError("Invalid numeric creation field: %s" % key)
-            if key == "vlan" and int(value) not in range(1, 4095):
+            if key == "vlan_id" and int(value) not in range(1, 4095):
                 raise ProxmoxError("VLAN must be in 1-4094; omit vlan to use an untagged interface")
             if key == "mtu" and not 576 <= int(value) <= 65535:
                 raise ProxmoxError("MTU must be 576-65535")
@@ -199,9 +199,9 @@ def create_environment(kind, vmid, scripts_ref, core_ref, settings, fields=None,
     else:
         environment.update({"VM_UNATTENDED": "1", "VM_VMID": str(vmid)})
     for key, value in settings.items():
-        if key == "privileged":
-            environment[fields[key]] = "0" if value in (True, "true", "yes", 1, "1") else "1"
-        elif key == "start":
+        if key == "unprivileged":
+            environment[fields[key]] = "1" if value in (True, "true", "yes", 1, "1") else "0"
+        elif key == "started":
             environment[fields[key]] = "yes" if value in (True, "true", "yes", 1, "1") else "no"
         elif key in LXC_YESNO:
             environment[fields[key]] = "yes" if value in (True, "true", "yes", 1, "1") else "no"

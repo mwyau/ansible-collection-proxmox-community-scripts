@@ -5,7 +5,7 @@
 guest_defaults:
   all:
     bridge: vmbr0
-    storage: local-lvm
+    datastore_id: local-lvm
   lxc:
     cores: 2
     memory: 2048

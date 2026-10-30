@@ -1,0 +1,48 @@
+---
+- name: Inspect Proxmox guest through the API
+  mwyau.proxmox_community_scripts.resource:
+    api_host: "{{ provenance_api_host }}"
+    api_token_id: "{{ provenance_api_token_id }}"
+    api_token_secret: "{{ provenance_api_token_secret }}"
+    validate_certs: "{{ provenance_validate_certs }}"
+    node: "{{ provenance_node }}"
+    vmid: "{{ provenance_vmid }}"
+    kind: "{{ provenance_kind }}"
+    action: inspect
+  delegate_to: localhost
+  become: false
+  register: _provenance_resource
+  no_log: true
+
+- name: Read LXC updater through host SSH (no guest SSH required)
+  ansible.builtin.command:
+    argv: [pct, exec, "{{ provenance_vmid | string }}", --, cat, /usr/bin/update]
+  register: _provenance_lxc_updater
+  check_mode: false  # read-only cat must run during Ansible --check
+  become: true
+  changed_when: false
+  failed_when: false
+  no_log: true
+  when:
+    - provenance_kind == 'lxc'
+    - provenance_inspect_guest | bool
+    - _provenance_resource.runtime_state.status == 'running'
+
+- name: Assess independent metadata and LXC updater evidence
+  mwyau.proxmox_community_scripts.provenance_info:
+    kind: "{{ provenance_kind }}"
+    config: "{{ _provenance_resource.config }}"
+    update_entrypoint: "{{ (_provenance_lxc_updater.stdout if (_provenance_lxc_updater is defined and _provenance_lxc_updater.rc is defined and _provenance_lxc_updater.rc == 0) else '') if provenance_kind == 'lxc' else omit }}"
+    expected_script: "{{ provenance_expected_script if provenance_expected_script | length > 0 else omit }}"
+    script_override: "{{ provenance_script_override if provenance_script_override | length > 0 else omit }}"
+  register: _provenance_assessment
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Publish provenance evidence for other roles
+  ansible.builtin.set_fact:
+    community_scripts_provenance: "{{ _provenance_assessment.provenance }}"
+    community_scripts_resource: "{{ _provenance_resource }}"
+    community_scripts_update_entrypoint: "{{ (_provenance_lxc_updater.stdout if (_provenance_lxc_updater is defined and _provenance_lxc_updater.rc is defined and _provenance_lxc_updater.rc == 0) else '') if provenance_kind == 'lxc' else '' }}"
+  no_log: true

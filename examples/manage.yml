@@ -1,0 +1,44 @@
+---
+- name: Inspect and reconcile existing Proxmox resources
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Set PROXMOX_TOKEN_ID and PROXMOX_TOKEN_SECRET in the controller
+    # environment, or load them securely from Ansible Vault.
+    token_id: "{{ lookup('ansible.builtin.env', 'PROXMOX_TOKEN_ID') }}"
+    token_secret: "{{ lookup('ansible.builtin.env', 'PROXMOX_TOKEN_SECRET') }}"
+  tasks:
+    - name: Discover Community Scripts from upstream (read-only)
+      mwyau.proxmox_community_scripts.script_catalog:
+        kind: all
+        ref: main
+      register: catalog
+
+    - name: Inspect LXC 120 (read-only)
+      mwyau.proxmox_community_scripts.resource:
+        api_host: pve.example.internal
+        api_token_id: "{{ token_id }}"
+        api_token_secret: "{{ token_secret }}"
+        vmid: 120
+        action: inspect
+      register: current
+
+    # Only run after verifying script provenance and setting a real host.
+    # For legacy LXC without verifiable API metadata, adopt: true must be
+    # an explicit human decision before enabling this task.
+    - name: Reconcile CPU/RAM and grow disk (example only)
+      mwyau.proxmox_community_scripts.resource:
+        api_host: pve.example.internal
+        api_token_id: "{{ token_id }}"
+        api_token_secret: "{{ token_secret }}"
+        vmid: 120
+        kind: lxc
+        action: reconcile
+        expected_script: adguard
+        settings:
+          cores: 4
+          memory: 4096
+        disk:
+          key: rootfs
+          size_gb: 16
+      when: false  # deliberately disabled by default

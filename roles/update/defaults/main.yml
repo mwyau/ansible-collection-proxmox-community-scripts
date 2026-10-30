@@ -1,0 +1,16 @@
+---
+update_api_host: ""
+update_api_token_id: ""
+update_api_token_secret: ""
+update_validate_certs: true
+update_node: ""
+update_vmid: 100
+update_script: ""
+update_request_id: ""
+update_scripts_ref: ""
+update_apply: false
+update_backup: true
+update_backup_storage: ""
+update_accept_no_backup: false
+update_checkout_root: /var/lib/ansible-community-scripts
+update_timeout_seconds: 7200

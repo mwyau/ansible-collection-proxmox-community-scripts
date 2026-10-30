@@ -1,0 +1,24 @@
+---
+# Deliberately disabled until tested on a disposable Proxmox node.
+deploy_execute: false
+deploy_accept_unverified_script: false
+deploy_validate_certs: true
+deploy_api_host: ""
+deploy_api_token_id: ""
+deploy_api_token_secret: ""
+deploy_node: ""
+deploy_kind: lxc
+deploy_script: ""
+deploy_vmid: 100
+deploy_scripts_ref: ""
+deploy_core_ref: ""
+deploy_settings: {}
+deploy_existing_settings: {}
+deploy_existing_disk: {}
+deploy_checkout_root: /var/lib/ansible-community-scripts
+deploy_timeout_seconds: 5400
+deploy_script_vars: {}
+deploy_ssh: {}
+deploy_cloud_init: {}
+deploy_ssh_key_directory: /var/lib/ansible-community-scripts/keys
+deploy_script_override: ""

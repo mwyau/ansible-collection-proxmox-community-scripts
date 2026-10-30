@@ -1,0 +1,35 @@
+---
+# Public facade. One guest, one application and one explicit action.
+action: inspect  # inspect, present, reconcile or update
+endpoint: ""
+api_token: ""
+insecure: false
+node_name: ""
+kind: lxc
+script: ""
+vm_id: null  # Cluster-global ID for LXC and VM
+scripts_ref: ""
+core_ref: ""
+settings: {}  # cores, memory (MiB), disk_size (GiB), bridge, storage, etc.
+# Inventory/group_vars can override these shared and per-kind defaults.
+# Each explicitly specified settings key takes precedence over all defaults.
+guest_defaults:
+  all: {}
+  lxc: {}
+  vm: {}
+install: false
+accept_unverified_install: false
+update_request_id: ""
+update_scripts_ref: ""
+update_apply: false
+update_backup: true
+update_backup_storage: ""
+update_accept_no_backup: false
+script_vars: {}
+disk_key: null
+ssh: {}
+cloud_init: {}
+configure_existing_cloud_init: false
+
+# Explicit manual identity for an existing guest whose script cannot be detected.
+script_override: ""

@@ -1,0 +1,26 @@
+namespace: mwyau
+name: proxmox_community_scripts
+version: 0.1.0
+readme: README.md
+authors:
+  - Albert Yau
+description: Discover and reconcile Proxmox VE resources deployed with Community Scripts
+license:
+  - MIT
+tags:
+  - proxmox
+  - lxc
+  - virtualization
+  - homelab
+  - automation
+repository: https://github.com/mwyau/ansible-proxmox-community-scripts
+documentation: https://github.com/mwyau/ansible-proxmox-community-scripts/blob/main/README.md
+issues: https://github.com/mwyau/ansible-proxmox-community-scripts/issues
+build_ignore:
+  - .git
+  - .github
+  - tests
+  - '*.tar.gz'
+dependencies:
+  community.proxmox: '>=2.0.0'
+  ansible.posix: '>=1.0.0'

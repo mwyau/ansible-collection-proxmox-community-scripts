@@ -1,0 +1,323 @@
+---
+- name: Validate deployment inputs and a non-empty API endpoint
+  ansible.builtin.assert:
+    that:
+      - deploy_api_host | length > 0
+      - deploy_api_token_id | length > 0
+      - deploy_api_token_secret | length > 0
+      - deploy_node | length > 0
+      - deploy_script | length > 0
+      - deploy_kind in ['lxc', 'vm']
+    fail_msg: Provide API credentials, exact PVE node, kind, and script slug.
+  no_log: true
+
+- name: Plan current cluster state and installer configuration (read-only)
+  mwyau.proxmox_community_scripts.deployment_plan:
+    api_host: "{{ deploy_api_host }}"
+    api_token_id: "{{ deploy_api_token_id }}"
+    api_token_secret: "{{ deploy_api_token_secret }}"
+    validate_certs: "{{ deploy_validate_certs }}"
+    node: "{{ deploy_node }}"
+    kind: "{{ deploy_kind }}"
+    script: "{{ deploy_script }}"
+    vmid: "{{ deploy_vmid }}"
+    scripts_ref: "{{ deploy_scripts_ref }}"
+    core_ref: "{{ deploy_core_ref }}"
+    settings: "{{ deploy_settings }}"
+    allow_unknown_existing: true
+    script_vars: "{{ deploy_script_vars }}"
+    ssh: "{{ deploy_ssh }}"
+    cloud_init: "{{ deploy_cloud_init }}"
+    ssh_key_directory: "{{ deploy_ssh_key_directory }}"
+  register: _cs_plan
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Read original application identity for an existing guest
+  ansible.builtin.include_role:
+    name: mwyau.proxmox_community_scripts.provenance
+  vars:
+    provenance_api_host: "{{ deploy_api_host }}"
+    provenance_api_token_id: "{{ deploy_api_token_id }}"
+    provenance_api_token_secret: "{{ deploy_api_token_secret }}"
+    provenance_validate_certs: "{{ deploy_validate_certs }}"
+    provenance_node: "{{ deploy_node }}"
+    provenance_vmid: "{{ deploy_vmid }}"
+    provenance_kind: "{{ deploy_kind }}"
+    provenance_expected_script: "{{ deploy_script }}"
+    provenance_script_override: "{{ deploy_script_override }}"
+  when: _cs_plan.exists
+
+- name: Never adopt an unidentified or conflicting existing VMID implicitly
+  ansible.builtin.assert:
+    that:
+      - community_scripts_provenance.status in ['verified', 'overridden']
+      - community_scripts_provenance.script == deploy_script
+    fail_msg: Existing guest provenance is unknown/conflicting; no changes were applied.
+  when: _cs_plan.exists
+
+- name: Reconcile hardware on already verified matching guest
+  mwyau.proxmox_community_scripts.resource:
+    api_host: "{{ deploy_api_host }}"
+    api_token_id: "{{ deploy_api_token_id }}"
+    api_token_secret: "{{ deploy_api_token_secret }}"
+    validate_certs: "{{ deploy_validate_certs }}"
+    node: "{{ deploy_node }}"
+    kind: "{{ deploy_kind }}"
+    vmid: "{{ deploy_vmid }}"
+    expected_script: "{{ deploy_script }}"
+    script_override: "{{ deploy_script_override if deploy_script_override | length > 0 else omit }}"
+    action: reconcile
+    settings: "{{ deploy_existing_settings }}"
+    disk: "{{ deploy_existing_disk }}"
+  when:
+    - _cs_plan.exists
+    - deploy_existing_settings | length > 0 or deploy_existing_disk | length > 0
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Validate selected upstream script source (read-only)
+  mwyau.proxmox_community_scripts.script_catalog:
+    kind: "{{ deploy_kind }}"
+    ref: "{{ deploy_scripts_ref }}"
+    script: "{{ deploy_script }}"
+  register: _cs_catalog
+  when: _cs_plan.needs_create
+  delegate_to: localhost
+  become: false
+
+- name: Reject retired or missing selected scripts
+  ansible.builtin.assert:
+    that:
+      - _cs_catalog.excluded_retired | length == 0
+      - _cs_catalog.scripts | length == 1
+    fail_msg: Selected script was retired or could not be verified at the pinned ref.
+  when: _cs_plan.needs_create
+
+- name: Read selected VM script override support evidence
+  ansible.builtin.set_fact:
+    _cs_vm_capabilities: "{{ _cs_catalog.scripts['vm/' ~ deploy_script].capabilities }}"
+  when:
+    - _cs_plan.needs_create
+    - deploy_kind == 'vm'
+
+- name: Require shared VM unattended entrypoint and requested field references
+  ansible.builtin.assert:
+    that:
+      - _cs_vm_capabilities.uses_shared_unattended | bool
+      - >-
+        (deploy_settings.keys() | list
+         | difference(_cs_vm_capabilities.field_references
+                      | dict2items | selectattr('value', 'equalto', true)
+                      | map(attribute='key') | list) | length) == 0
+    fail_msg: Selected VM script lacks shared unattended entrypoint or references to requested VM settings; creation cancelled.
+  when:
+    - _cs_plan.needs_create
+    - deploy_kind == 'vm'
+
+- name: Require selected VM to implement an actual Cloud-Init hook
+  ansible.builtin.assert:
+    that:
+      - _cs_catalog.scripts[(deploy_kind ~ '/' ~ deploy_script)].capabilities.cloud_init_hook | default(false)
+    fail_msg: This VM script does not expose the shared Cloud-Init hook; refusing SSH/cloud-init configuration.
+  when:
+    - _cs_plan.needs_create
+    - deploy_kind == 'vm'
+    - _cs_plan.guest_access.cloud_init_requested
+
+- name: Require explicit approval for unverified script execution
+  ansible.builtin.assert:
+    that:
+      - deploy_execute | bool
+      - deploy_accept_unverified_script | bool
+    fail_msg: "Installation is disabled. Explicitly enable deploy_execute and deploy_accept_unverified_script on a disposable PVE host."
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+
+- name: Verify intended PVE host (read-only)
+  ansible.builtin.command:
+    argv: [pveversion]
+  changed_when: false
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+  become: true
+
+- name: Read actual PVE node name
+  ansible.builtin.command:
+    argv: [hostname, -s]
+  changed_when: false
+  register: _cs_hostname
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+
+- name: Prevent deploying to an unintended Proxmox node
+  ansible.builtin.assert:
+    that:
+      - _cs_hostname.stdout == deploy_node
+    fail_msg: PVE host name does not match the requested deployment node.
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+
+- name: Make protected source directory on PVE
+  ansible.builtin.file:
+    path: "{{ deploy_checkout_root }}"
+    state: directory
+    mode: '0700'
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+  become: true
+
+- name: Create private SSH key staging directory for VM cloud-init
+  ansible.builtin.file:
+    path: "{{ deploy_ssh_key_directory }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  become: true
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+    - deploy_kind == 'vm'
+    - _cs_plan.guest_access.public_keys | length > 0
+
+- name: Stage explicitly supplied public keys before the VM's first boot
+  ansible.builtin.copy:
+    content: "{{ _cs_plan.guest_access.public_keys | join('\n') }}\n"
+    dest: "{{ _cs_plan.environment.CLOUDINIT_SSH_KEYS }}"
+    owner: root
+    group: root
+    mode: '0600'
+  become: true
+  no_log: true
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+    - deploy_kind == 'vm'
+    - _cs_plan.guest_access.public_keys | length > 0
+
+- name: Clone pinned Community Scripts tree on PVE
+  ansible.builtin.git:
+    repo: https://github.com/community-scripts/ProxmoxVE.git
+    dest: "{{ deploy_checkout_root }}/scripts-{{ deploy_scripts_ref }}"
+    version: "{{ deploy_scripts_ref }}"
+    update: true
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+  become: true
+
+- name: Clone pinned Core tree on PVE
+  ansible.builtin.git:
+    repo: https://github.com/community-scripts/core.git
+    dest: "{{ deploy_checkout_root }}/core-{{ deploy_core_ref }}"
+    version: "{{ deploy_core_ref }}"
+    update: false
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+  become: true
+
+- name: Re-check VMID immediately before invocation
+  mwyau.proxmox_community_scripts.deployment_plan:
+    api_host: "{{ deploy_api_host }}"
+    api_token_id: "{{ deploy_api_token_id }}"
+    api_token_secret: "{{ deploy_api_token_secret }}"
+    validate_certs: "{{ deploy_validate_certs }}"
+    node: "{{ deploy_node }}"
+    kind: "{{ deploy_kind }}"
+    script: "{{ deploy_script }}"
+    vmid: "{{ deploy_vmid }}"
+    scripts_ref: "{{ deploy_scripts_ref }}"
+    core_ref: "{{ deploy_core_ref }}"
+    settings: "{{ deploy_settings }}"
+  register: _cs_last_plan
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Prevent creation after a VMID race
+  ansible.builtin.assert:
+    that:
+      - _cs_last_plan.needs_create
+    fail_msg: VMID changed during provisioning; installation cancelled.
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+
+- name: Run pinned upstream installer without terminal (explicit opt-in only)
+  ansible.builtin.command:
+    argv: "{{ ['/usr/bin/setsid', '--wait', '/usr/bin/timeout', '-k', '30', deploy_timeout_seconds | string, '/bin/bash', deploy_checkout_root ~ '/scripts-' ~ deploy_scripts_ref ~ '/' ~ ('ct' if deploy_kind == 'lxc' else 'vm') ~ '/' ~ deploy_script ~ '.sh'] + (['generated'] if deploy_kind == 'lxc' else []) }}"
+    stdin: ""
+  environment: "{{ _cs_plan.environment | combine({'COMMUNITY_SCRIPTS_CORE_DIR': deploy_checkout_root ~ '/core-' ~ deploy_core_ref, 'COMMUNITY_SCRIPTS_ROOT': deploy_checkout_root ~ '/scripts-' ~ deploy_scripts_ref}) }}"
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+  become: true
+  no_log: true
+
+- name: Verify exact guest identity after installation
+  mwyau.proxmox_community_scripts.resource:
+    api_host: "{{ deploy_api_host }}"
+    api_token_id: "{{ deploy_api_token_id }}"
+    api_token_secret: "{{ deploy_api_token_secret }}"
+    validate_certs: "{{ deploy_validate_certs }}"
+    node: "{{ deploy_node }}"
+    kind: "{{ deploy_kind }}"
+    vmid: "{{ deploy_vmid }}"
+    expected_script: "{{ deploy_script }}"
+    action: inspect
+  register: _cs_postinstall
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Verify installed guest provenance through API and optional LXC updater
+  ansible.builtin.include_role:
+    name: mwyau.proxmox_community_scripts.provenance
+  vars:
+    provenance_api_host: "{{ deploy_api_host }}"
+    provenance_api_token_id: "{{ deploy_api_token_id }}"
+    provenance_api_token_secret: "{{ deploy_api_token_secret }}"
+    provenance_validate_certs: "{{ deploy_validate_certs }}"
+    provenance_node: "{{ deploy_node }}"
+    provenance_vmid: "{{ deploy_vmid }}"
+    provenance_kind: "{{ deploy_kind }}"
+    provenance_expected_script: "{{ deploy_script }}"
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+
+- name: Fail closed if the installed guest has no matching identity
+  ansible.builtin.assert:
+    that:
+      - community_scripts_provenance.status == 'verified'
+      - community_scripts_provenance.script == deploy_script
+    fail_msg: Installer finished but guest identity is unverified; inspect manually before another run.
+  when:
+    - _cs_plan.needs_create
+    - not ansible_check_mode
+
+- name: Show safe installation planning summary
+  ansible.builtin.debug:
+    msg:
+      changed_predicted: "{{ _cs_plan.needs_create }}"
+      existing_guest: "{{ _cs_plan.exists }}"
+      script: "{{ deploy_kind }}/{{ deploy_script }}"
+      vmid: "{{ deploy_vmid }}"
+      scripts_ref: "{{ deploy_scripts_ref }}"
+      core_ref: "{{ deploy_core_ref }}"
+  when: ansible_check_mode

@@ -1,0 +1,23 @@
+---
+# Safe by default: update_apply=false. To run on a disposable LXC,
+# choose a new request ID, set the backup storage and approve the update.
+- name: Explicit Community Scripts application update
+  hosts: pve
+  gather_facts: false
+  roles:
+    - role: mwyau.proxmox_community_scripts.application
+      vars:
+        action: update
+        api_host: pve.example.internal
+        api_token_id: "{{ lookup('ansible.builtin.env', 'PROXMOX_TOKEN_ID') }}"
+        api_token_secret: "{{ lookup('ansible.builtin.env', 'PROXMOX_TOKEN_SECRET') }}"
+        node: pve1
+        kind: lxc
+        script: adguard
+        vmid: 120
+        # Exact scripts revision containing tools/pve/update-apps.sh.
+        scripts_ref: '0123456789abcdef0123456789abcdef01234567'
+        update_request_id: 'update-2026-10-29-01'
+        update_backup: true
+        update_backup_storage: backup-storage
+        update_apply: false

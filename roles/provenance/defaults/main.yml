@@ -1,0 +1,11 @@
+---
+provenance_api_host: ""
+provenance_api_token_id: ""
+provenance_api_token_secret: ""
+provenance_validate_certs: true
+provenance_node: ""
+provenance_vmid: 100
+provenance_kind: lxc
+provenance_expected_script: ""
+provenance_inspect_guest: true
+provenance_script_override: ""

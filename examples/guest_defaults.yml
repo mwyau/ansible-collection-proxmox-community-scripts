@@ -1,0 +1,19 @@
+---
+# Example inventory group_vars/pve.yml content, stored separately from
+# per-guest declarations. Values here are opt-in user defaults. An omitted
+# field is never invented by the collection.
+guest_defaults:
+  all:
+    bridge: vmbr0
+    datastore_id: local-lvm
+  lxc:
+    cores: 2
+    memory: 2048
+    disk_size: 8
+  vm:
+    cores: 4
+    memory: 4096
+    disk_size: 32
+
+# With these defaults, per-guest settings can be empty. The upstream script's
+# own hostname is preserved because hostname is not specified anywhere.

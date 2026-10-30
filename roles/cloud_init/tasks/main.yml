@@ -1,0 +1,79 @@
+---
+- name: Verify target VM identity before Cloud-Init changes
+  ansible.builtin.include_role:
+    name: mwyau.proxmox_community_scripts.provenance
+  vars:
+    provenance_api_host: "{{ cloud_init_api_host }}"
+    provenance_api_token_id: "{{ cloud_init_api_token_id }}"
+    provenance_api_token_secret: "{{ cloud_init_api_token_secret }}"
+    provenance_validate_certs: "{{ cloud_init_validate_certs }}"
+    provenance_node: "{{ cloud_init_node }}"
+    provenance_vmid: "{{ cloud_init_vmid }}"
+    provenance_kind: vm
+    provenance_expected_script: "{{ cloud_init_script }}"
+    provenance_script_override: "{{ cloud_init_script_override }}"
+
+- name: Require verified VM and existing Cloud-Init disk
+  ansible.builtin.assert:
+    that:
+      - community_scripts_provenance.status in ['verified', 'overridden']
+      - community_scripts_provenance.script == cloud_init_script
+      - community_scripts_resource.runtime_state.status == 'stopped'
+      - >-
+        ((community_scripts_resource.config.ide2 | default('')) is search('cloudinit')) or
+        ((community_scripts_resource.config.scsi1 | default('')) is search('cloudinit'))
+    fail_msg: Only a stopped, positively identified VM with an existing Cloud-Init drive is supported.
+
+- name: Validate Cloud-Init request schema
+  ansible.builtin.assert:
+    that:
+      - cloud_init_settings.enabled | default(false) | bool
+      - cloud_init_ssh.enabled | default(true) | bool
+      - cloud_init_settings.network_mode | default('dhcp') in ['dhcp', 'static']
+      - cloud_init_settings.get('user', '') | length > 0 or cloud_init_ssh.get('public_keys', []) | length > 0
+    fail_msg: Explicitly enable Cloud-Init and provide a username or SSH public key.
+
+- name: Prepare IP configuration for existing VM
+  ansible.builtin.set_fact:
+    _cloudinit_ipconfig0: >-
+      {{
+        'ip=' ~ cloud_init_settings.ip ~ ',gw=' ~ cloud_init_settings.gateway
+        if cloud_init_settings.network_mode | default('dhcp') == 'static'
+        else 'ip=dhcp'
+      }}
+    _cloudinit_sshkeys: "{{ cloud_init_ssh.public_keys | default([]) | join('\n') }}"
+  no_log: true
+
+- name: Show read-only configuration intent
+  ansible.builtin.debug:
+    msg:
+      vmid: "{{ cloud_init_vmid }}"
+      kind: vm
+      cloud_init_configured: true
+      would_apply_when_enabled: "{{ not cloud_init_apply_existing | bool }}"
+      note: No VM config changes were made in check mode.
+  when: ansible_check_mode or not cloud_init_apply_existing | bool
+
+- name: Apply supported Cloud-Init settings through community.proxmox
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ cloud_init_api_host | regex_replace('^https://', '') | regex_replace(':8006$', '') }}"
+    api_user: "{{ cloud_init_api_token_id.split('!')[0] }}"
+    api_token_id: "{{ cloud_init_api_token_id.split('!')[1] }}"
+    api_token_secret: "{{ cloud_init_api_token_secret }}"
+    validate_certs: "{{ cloud_init_validate_certs }}"
+    node: "{{ cloud_init_node }}"
+    vmid: "{{ cloud_init_vmid }}"
+    state: present
+    update: true
+    update_unsafe: false
+    ciuser: "{{ cloud_init_settings.user | default(omit) }}"
+    sshkeys: "{{ _cloudinit_sshkeys if _cloudinit_sshkeys | length > 0 else omit }}"
+    ipconfig:
+      ipconfig0: "{{ _cloudinit_ipconfig0 }}"
+    nameservers: "{{ cloud_init_settings.dns | default(omit) }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when:
+    - not ansible_check_mode
+    - cloud_init_apply_existing | bool

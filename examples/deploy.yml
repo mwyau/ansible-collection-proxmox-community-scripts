@@ -1,0 +1,29 @@
+---
+# This playbook is a template: set inventory and both API and SSH credentials.
+# It is safe with defaults (deploy_execute=false) and in --check mode.
+- name: Deploy pinned Community Scripts application on isolated Proxmox node
+  hosts: pve
+  gather_facts: false
+  roles:
+    - role: mwyau.proxmox_community_scripts.deploy
+      vars:
+        deploy_api_host: pve.example.internal
+        deploy_api_token_id: "{{ lookup('ansible.builtin.env', 'PROXMOX_TOKEN_ID') }}"
+        deploy_api_token_secret: "{{ lookup('ansible.builtin.env', 'PROXMOX_TOKEN_SECRET') }}"
+        deploy_node: pve1
+        deploy_kind: lxc
+        deploy_script: adguard
+        deploy_vmid: 120
+        # Replace these examples with actual 40-character commit SHAs.
+        deploy_scripts_ref: "0123456789abcdef0123456789abcdef01234567"
+        deploy_core_ref: "0123456789abcdef0123456789abcdef01234567"
+        deploy_settings:
+          cores: 2
+          memory: 1024
+          disk_size: 8
+          bridge: vmbr0
+          os: debian
+          os_version: 13
+        # Both are required before the role may install a missing guest.
+        deploy_execute: false
+        deploy_accept_unverified_script: false

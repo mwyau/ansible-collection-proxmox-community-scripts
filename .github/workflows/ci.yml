@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  collection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax and safety unit tests
+        run: |
+          python -m compileall -q plugins tests
+          python -m unittest discover -s tests -v
+      - name: Build Galaxy collection
+        run: |
+          python -m pip install --disable-pip-version-check ansible-core
+          ansible-galaxy collection build --output-path dist
+      - name: Inspect module docs
+        run: |
+          mkdir -p "$HOME/.ansible/collections"
+          ansible-galaxy collection install dist/*.tar.gz --force --no-cache
+          ansible-doc -t module mwyau.proxmox_community_scripts.resource > /dev/null
+          ansible-doc -t module mwyau.proxmox_community_scripts.script_catalog > /dev/null
+          ansible-doc -t module mwyau.proxmox_community_scripts.resources_info > /dev/null
+          ansible-doc -t module mwyau.proxmox_community_scripts.deployment_plan > /dev/null
+          ansible-doc -t module mwyau.proxmox_community_scripts.provenance_info > /dev/null
+          ansible-doc -t module community.proxmox.proxmox > /dev/null
+          ansible-doc -t module community.proxmox.proxmox_kvm > /dev/null
+          ansible-doc -t module community.proxmox.proxmox_disk > /dev/null
+          ansible-playbook --syntax-check -i "pve," examples/deploy.yml
+          ansible-playbook --syntax-check -i "pve," examples/application.yml
+          ansible-playbook --syntax-check -i "pve," examples/adopt_existing.yml
+          ansible-playbook --syntax-check -i "pve," examples/reconcile.yml
+          ansible-playbook --syntax-check -i "pve," examples/ssh_cloud_init.yml
+          ansible-playbook --syntax-check -i "pve," examples/guest_ssh.yml
+          ansible-playbook -i 'localhost,' -c local tests/guest_defaults.yml

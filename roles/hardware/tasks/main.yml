@@ -1,0 +1,213 @@
+---
+# A thin adapter, not a separate Proxmox provider. We use the collection's
+# identity and read-only planner before invoking mature community.proxmox modules.
+- name: Validate hardware adapter settings
+  ansible.builtin.assert:
+    that:
+      - hardware_kind in ['lxc', 'vm']
+      - hardware_api_host | length > 0
+      - hardware_api_token_id | regex_search('^[^!]+![^!]+$') is not none
+      - hardware_api_token_secret | length > 0
+      - hardware_node | length > 0
+      - hardware_script | length > 0
+      - hardware_cores is none or hardware_cores | int > 0
+      - hardware_memory is none or hardware_memory | int > 0
+      - hardware_swap is none or (hardware_kind == 'lxc' and hardware_swap | int >= 0)
+      - hardware_sockets is none or (hardware_kind == 'vm' and hardware_sockets | int > 0)
+      - hardware_disk_gib is none or hardware_disk_gib | int > 0
+    fail_msg: Invalid or unsupported hardware configuration.
+  no_log: true
+
+- name: Derive only explicitly specified supported fields
+  ansible.builtin.set_fact:
+    _hardware_settings: >-
+      {{
+        ({} if hardware_cores is none else {'cores': hardware_cores | int})
+        | combine({} if hardware_memory is none else {'memory': hardware_memory | int})
+        | combine({} if hardware_swap is none else {'swap': hardware_swap | int})
+        | combine({} if hardware_sockets is none else {'sockets': hardware_sockets | int})
+      }}
+    _hardware_disk: >-
+      {{
+        {} if hardware_disk_gib is none else
+        {'key': hardware_disk_key | default(('rootfs' if hardware_kind == 'lxc' else 'scsi0'), true),
+         'size_gb': hardware_disk_gib | int}
+      }}
+  no_log: true
+
+- name: Discover exact application identity from PVE and LXC updater
+  ansible.builtin.include_role:
+    name: mwyau.proxmox_community_scripts.provenance
+  vars:
+    provenance_api_host: "{{ hardware_api_host }}"
+    provenance_api_token_id: "{{ hardware_api_token_id }}"
+    provenance_api_token_secret: "{{ hardware_api_token_secret }}"
+    provenance_validate_certs: "{{ hardware_validate_certs }}"
+    provenance_node: "{{ hardware_node }}"
+    provenance_vmid: "{{ hardware_vmid }}"
+    provenance_kind: "{{ hardware_kind }}"
+    provenance_expected_script: "{{ hardware_script }}"
+    provenance_script_override: "{{ hardware_script_override }}"
+
+- name: Reject absent or conflicting application provenance
+  ansible.builtin.assert:
+    that:
+      - community_scripts_provenance.status in ['verified', 'overridden']
+      - community_scripts_provenance.script == hardware_script
+    fail_msg: Application provenance is unknown or conflicting; manual adoption is required.
+
+- name: Read-only plan and strict existing resource identity check
+  mwyau.proxmox_community_scripts.resource:
+    api_host: "{{ hardware_api_host }}"
+    api_token_id: "{{ hardware_api_token_id }}"
+    api_token_secret: "{{ hardware_api_token_secret }}"
+    validate_certs: "{{ hardware_validate_certs }}"
+    node: "{{ hardware_node }}"
+    vmid: "{{ hardware_vmid }}"
+    kind: "{{ hardware_kind }}"
+    expected_script: "{{ hardware_script }}"
+    script_override: "{{ hardware_script_override if hardware_script_override | length > 0 else omit }}"
+    update_entrypoint: "{{ community_scripts_update_entrypoint if hardware_kind == 'lxc' else omit }}"
+    action: plan
+    settings: "{{ _hardware_settings }}"
+    disk: "{{ _hardware_disk }}"
+  delegate_to: localhost
+  become: false
+  register: _hardware_plan
+  no_log: true
+
+- name: Report desired hardware diff without applying it
+  ansible.builtin.debug:
+    msg:
+      vmid: "{{ hardware_vmid }}"
+      would_change: "{{ _hardware_plan.would_change }}"
+      settings: "{{ _hardware_plan.plan.settings }}"
+      disk: "{{ _hardware_plan.plan.resize }}"
+      runtime_state: "{{ _hardware_plan.runtime_state.status | default('unknown') }}"
+      pending_changes: "{{ _hardware_plan.pending_changes }}"
+  when: ansible_check_mode
+
+- name: Reject identity not verified by Proxmox metadata
+  ansible.builtin.assert:
+    that:
+      - _hardware_plan.effective_script == hardware_script
+    fail_msg: Refusing to modify guest whose application identity cannot be verified.
+  when: not ansible_check_mode
+
+- name: Update existing LXC CPU, RAM and swap with community.proxmox
+  community.proxmox.proxmox:
+    api_host: "{{ hardware_api_host | regex_replace('^https://', '') | regex_replace(':8006$', '') }}"
+    api_user: "{{ hardware_api_token_id.split('!')[0] }}"
+    api_token_id: "{{ hardware_api_token_id.split('!')[1] }}"
+    api_token_secret: "{{ hardware_api_token_secret }}"
+    validate_certs: "{{ hardware_validate_certs }}"
+    node: "{{ hardware_node }}"
+    vmid: "{{ hardware_vmid }}"
+    state: present
+    force: false
+    update: true
+    cores: "{{ _hardware_plan.plan.settings.cores | default(omit) }}"
+    memory: "{{ _hardware_plan.plan.settings.memory | default(omit) }}"
+    swap: "{{ _hardware_plan.plan.settings.swap | default(omit) }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when:
+    - not ansible_check_mode
+    - hardware_kind == 'lxc'
+    - _hardware_plan.plan.settings | length > 0
+
+- name: Update existing QEMU CPU and RAM with community.proxmox
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ hardware_api_host | regex_replace('^https://', '') | regex_replace(':8006$', '') }}"
+    api_user: "{{ hardware_api_token_id.split('!')[0] }}"
+    api_token_id: "{{ hardware_api_token_id.split('!')[1] }}"
+    api_token_secret: "{{ hardware_api_token_secret }}"
+    validate_certs: "{{ hardware_validate_certs }}"
+    node: "{{ hardware_node }}"
+    vmid: "{{ hardware_vmid }}"
+    state: present
+    update: true
+    update_unsafe: false
+    cores: "{{ _hardware_plan.plan.settings.cores | default(omit) }}"
+    memory: "{{ _hardware_plan.plan.settings.memory | default(omit) }}"
+    sockets: "{{ _hardware_plan.plan.settings.sockets | default(omit) }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when:
+    - not ansible_check_mode
+    - hardware_kind == 'vm'
+    - _hardware_plan.plan.settings | length > 0
+
+- name: Grow existing VM disk using community.proxmox.proxmox_disk
+  community.proxmox.proxmox_disk:
+    api_host: "{{ hardware_api_host | regex_replace('^https://', '') | regex_replace(':8006$', '') }}"
+    api_user: "{{ hardware_api_token_id.split('!')[0] }}"
+    api_token_id: "{{ hardware_api_token_id.split('!')[1] }}"
+    api_token_secret: "{{ hardware_api_token_secret }}"
+    validate_certs: "{{ hardware_validate_certs }}"
+    vmid: "{{ hardware_vmid }}"
+    disk: "{{ _hardware_plan.plan.resize.key }}"
+    size: "{{ _hardware_plan.plan.resize.size_gb }}G"
+    state: resized
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when:
+    - not ansible_check_mode
+    - hardware_kind == 'vm'
+    - _hardware_plan.plan.resize is not none
+
+- name: Grow existing LXC rootfs with the guarded API resize
+  mwyau.proxmox_community_scripts.resource:
+    api_host: "{{ hardware_api_host }}"
+    api_token_id: "{{ hardware_api_token_id }}"
+    api_token_secret: "{{ hardware_api_token_secret }}"
+    validate_certs: "{{ hardware_validate_certs }}"
+    node: "{{ hardware_node }}"
+    vmid: "{{ hardware_vmid }}"
+    kind: lxc
+    expected_script: "{{ hardware_script }}"
+    update_entrypoint: "{{ community_scripts_update_entrypoint if hardware_kind == 'lxc' else omit }}"
+    action: reconcile
+    disk: "{{ _hardware_disk }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when:
+    - not ansible_check_mode
+    - hardware_kind == 'lxc'
+    - _hardware_plan.plan.resize is not none
+
+- name: Validate resulting configuration and report pending reboot
+  mwyau.proxmox_community_scripts.resource:
+    api_host: "{{ hardware_api_host }}"
+    api_token_id: "{{ hardware_api_token_id }}"
+    api_token_secret: "{{ hardware_api_token_secret }}"
+    validate_certs: "{{ hardware_validate_certs }}"
+    node: "{{ hardware_node }}"
+    vmid: "{{ hardware_vmid }}"
+    kind: "{{ hardware_kind }}"
+    expected_script: "{{ hardware_script }}"
+    script_override: "{{ hardware_script_override if hardware_script_override | length > 0 else omit }}"
+    update_entrypoint: "{{ community_scripts_update_entrypoint if hardware_kind == 'lxc' else omit }}"
+    action: plan
+    settings: "{{ _hardware_settings }}"
+    disk: "{{ _hardware_disk }}"
+  delegate_to: localhost
+  become: false
+  register: _hardware_after
+  no_log: true
+  when:
+    - not ansible_check_mode
+    - _hardware_plan.would_change
+
+- name: Require configured hardware converged
+  ansible.builtin.assert:
+    that:
+      - not _hardware_after.would_change
+    fail_msg: Hardware configuration did not converge; inspect guest and pending settings.
+  when:
+    - not ansible_check_mode
+    - _hardware_plan.would_change

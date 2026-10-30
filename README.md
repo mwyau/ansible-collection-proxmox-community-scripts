@@ -146,9 +146,8 @@ For an existing LXC/VM whose original script cannot be established from the Prox
   vars:
     action: present
     endpoint: pve.example.internal
-    api_token_id: "{{ proxmox_token_id }}"
-    api_token_secret: "{{ proxmox_token_secret }}"
-    node: pve1
+    api_token: "{{ lookup('env', 'PROXMOX_VE_API_TOKEN') }}"
+    node_name: pve1
     vm_id: 120
     kind: lxc
     script: adguard
@@ -216,7 +215,7 @@ Define common **resource settings** once in Ansible inventory (for example, `gro
 guest_defaults:
   all:
     bridge: vmbr0
-    storage: local-lvm
+    datastore_id: local-lvm
   lxc:
     cores: 2
     memory: 2048  # MiB

@@ -79,7 +79,7 @@ The preferred entrypoint is the `mwyau.proxmox_community_scripts.application` ro
 - **Reconcile:** Uses `community.proxmox.proxmox` for LXC CPU/RAM/swap, `community.proxmox.proxmox_kvm` for VM CPU/RAM, and `community.proxmox.proxmox_disk` for VM disk growth; the guarded API handles LXC rootfs growth. Explicitly applies hardware settings from the individual guest's `settings` (not `guest_defaults`) to an existing, positively identified guest through the thin `hardware` role. CPU/RAM/swap and grow-only disk updates do not reboot the guest automatically. Existing VM cloud-init changes additionally require `configure_existing_cloud_init: true`.
 - **Update:** A separate explicit application software update request. LXCs use the upstream `tools/pve/update-apps.sh` over Ansible SSH to the PVE node; **VM software updates remain app-specific and are not generically supported**. The guest itself requires no SSH key: `pct exec` verifies `/usr/bin/update`.
 
-The normal `settings` keys for creation include `cores`, `memory` (MiB), `disk_size` (GiB), `hostname`, `bridge`, `vlan`, `storage`, and type-appropriate OS/network settings. `cores`, `memory`, LXC `swap`, and disk growth are reconciled on existing resources; installation-only settings are **not** reapplied. VM disk identity defaults to `scsi0`, LXC to `rootfs`; set `disk_key` for another *existing* VM disk.
+The normal `settings` keys for creation include `cores`, `memory` (MiB), `disk_size` (GiB), `hostname`, `bridge`, `vlan_id`, `datastore_id`, and type-appropriate OS/network settings. `cores`, `memory`, LXC `swap`, and disk growth are reconciled on existing resources; installation-only settings are **not** reapplied. VM disk identity defaults to `scsi0`, LXC to `rootfs`; set `disk_key` for another *existing* VM disk.
 
 `script_vars` is a bounded, creation-only escape hatch accepting arbitrary valid environment names (including `var_*`, `VM_*`, and app-specific names). It accepts at most 64 entries and 32 KiB, rejects control characters and protected identity/unattended/source/shell overrides, and refuses any normalized settings keys. It does not guarantee that a given upstream script supports the variable. Supply sensitive values with Ansible Vault and `no_log`; never commit passwords.
 
@@ -137,7 +137,7 @@ The `guest_ssh` role can also manage a Debian/Ubuntu/Alpine VM **after** a norma
 
 ## Concise role interface and manual script identity
 
-The `application` role uses unprefixed options: `action`, `api_host`, `api_token_id`, `api_token_secret`, `node`, `kind`, `ctid` for LXC or `vmid` for VM, `script`, `settings`, `ssh`, `cloud_init`, and `script_override`. The internal deploy, hardware and update roles retain their distinct prefixes to avoid clashes. **Existing guests do not need scripts/Core revision hashes.** Creating a missing guest still requires full, immutable `scripts_ref` and `core_ref`.
+The `application` role uses unprefixed options: `action`, `endpoint`, `api_token`, `insecure`, `node_name`, `kind`, `vm_id` for either LXC or VM, `script`, `settings`, `ssh`, `cloud_init`, and `script_override`. The internal deploy, hardware and update roles retain their distinct prefixes to avoid clashes. **Existing guests do not need scripts/Core revision hashes.** Creating a missing guest still requires full, immutable `scripts_ref` and `core_ref`.
 
 For an existing LXC/VM whose original script cannot be established from the Proxmox description/tags or a running LXC's `/usr/bin/update` file:
 
@@ -145,11 +145,11 @@ For an existing LXC/VM whose original script cannot be established from the Prox
 - role: mwyau.proxmox_community_scripts.application
   vars:
     action: present
-    api_host: pve.example.internal
+    endpoint: pve.example.internal
     api_token_id: "{{ proxmox_token_id }}"
     api_token_secret: "{{ proxmox_token_secret }}"
     node: pve1
-    ctid: 120
+    vm_id: 120
     kind: lxc
     script: adguard
     script_override: adguard
@@ -164,11 +164,11 @@ If `script_override` is not supplied, unknown guests are inspected safely but mu
 
 ## One shared LXC / VM settings vocabulary
 
-Use `ctid` for LXC and `vmid` for VM; Proxmox stores both identifiers in one cluster-global VMID namespace. Both otherwise use the same `cores`, `memory` (MiB), `disk_size` (GiB), `bridge`, `storage`, `hostname`, `vlan`, `mac`, and `mtu` when supported by the selected installer. Public settings are *not* shell variable names.
+Use one `vm_id` for LXC and VM alike, matching bpg/proxmox. Proxmox stores both in a cluster-global VMID namespace. Both otherwise use the same `cores`, `memory` (MiB), `disk_size` (GiB), `bridge`, `datastore_id`, `hostname`, `vlan_id`, `mac_address`, and `mtu` when supported by the selected installer. Public settings are *not* shell variable names.
 
 | Public | LXC Core | VM Core |
 | --- | --- | --- |
-| `ctid` / `vmid` | `var_ctid` | `VM_VMID` |
+| `vm_id` | `var_ctid` | `VM_VMID` |
 | `cores` | `var_cpu` | `VM_CORES` |
 | `memory` | `var_ram` | `VM_RAM` |
 | `disk_size` | `var_disk` (GiB) | `VM_DISK_SIZE` (e.g. `32G`) |

@@ -161,10 +161,10 @@ Current LXC host updater: `ProxmoxVE/tools/pve/update-apps.sh`. It accepts `var_
 - Remove the ambiguous `manage_hardware` toggle, previously defaulting to true. `inspect` and `update` remain distinct actions.
 
 ## Companion Terraform provider contract (2026-10-29)
-Canonical shared input names: `api_host`, `api_token_id`, `api_token_secret`, `validate_certs`, `ctid` (LXC), `vmid` (VM), `node`, `kind`, `script`, `scripts_ref`, `core_ref`, `settings`, `guest_defaults`, `script_vars`, `update_request_id`, `update_scripts_ref`, `update_backup_storage` and `disk_key`. The versioned canonical mapping is `contracts/guest.v1.json`. Do not add legacy aliases. Terraform controls state and lifecycle for its own VMIDs; Ansible may separately configure software inside such guests without competing PVE hardware mutations. CI must check contract parity across repositories. No live PVE integration run is implied.
+Canonical shared public input names: `endpoint`, `api_token`, `insecure`, `node_name`, `vm_id`, `kind`, `script`, `scripts_ref`, `core_ref`, `settings`, `guest_defaults`, `script_vars`, `update_request_id`, `update_scripts_ref`, `update_backup_storage` and `disk_key`. The versioned canonical mapping is `contracts/guest.v1.json`. Do not add legacy aliases. Terraform controls state and lifecycle for its own VMIDs; Ansible may separately configure software inside such guests without competing PVE hardware mutations. CI must check contract parity across repositories. No live PVE integration run is implied.
 
 ## Identity correction (2026-10-29)
-Public guest identity depends on `kind`: LXC uses `ctid`, VM uses `vmid`. They are mutually exclusive. Terraform's computed `id` is reserved for stable state/import identities. All Proxmox API calls use a single normalized integer VMID internally.
+Public guest identity is `vm_id` for both LXC and VM, matching bpg/proxmox. Terraform's computed `id` is reserved for type-qualified state/import identities. All Proxmox API calls use a single normalized integer VMID internally.
 
 
 ## Current API names (bpg/proxmox compatibility)

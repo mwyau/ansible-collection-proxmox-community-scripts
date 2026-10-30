@@ -63,7 +63,7 @@ The `guest_ssh` role is deliberately a thin wrapper around standard Ansible pack
 The `application` role must use short caller-facing options, not `application_*`. Internal subroles retain scoped names. A `script_override` can apply only when source provenance is unknown; require exact agreement with requested `script`. Never treat an overridden identity as verified, accept conflicting source metadata, ignore a Proxmox type/VMID mismatch, or use the override to bypass app-updater or new-install checks. Existing guest management requires no source ref; new installations require immutable script and Core SHAs.
 
 ## Public Core mapping contract
-Use ctid for LXCs and vmid for VMs in the public application role. Internally use the PVE vmid API field. Keep one vocabulary otherwise: cores, memory (MiB), disk_size (GiB), bridge, storage, hostname, vlan, mac, mtu. Translate into LXC var_* and VM VM_* only at the boundary. The two Core engines have different expected value encodings; never assume boolean values are interchangeable. For named VM creation, inspect the selected script for shared unattended execution and actual use of requested fields, fail on absent evidence, and avoid claiming that source inspection proves deployment. Do not reintroduce settings.disk or unverified static IPv6 fields.
+Use vm_id for LXCs and VMs in the public application role, as in bpg/proxmox. Internally use the PVE vmid API field. Keep one vocabulary otherwise: cores, memory (MiB), disk_size (GiB), bridge, storage, hostname, vlan, mac, mtu. Translate into LXC var_* and VM VM_* only at the boundary. The two Core engines have different expected value encodings; never assume boolean values are interchangeable. For named VM creation, inspect the selected script for shared unattended execution and actual use of requested fields, fail on absent evidence, and avoid claiming that source inspection proves deployment. Do not reintroduce settings.disk or unverified static IPv6 fields.
 
 Keep `script_vars` as a creation-only raw environment escape hatch (valid shell names, strict protected names, bounded number/size, no control characters, and no logging of Vault secrets). It must not permit app code to override managed Proxmox IDs, normalized resource keys, source pinning or unattended controls. Fail on unsupported types; do not pretend raw variable names imply application support.
 
@@ -75,13 +75,13 @@ The `application` role exposes `guest_defaults.all`, `guest_defaults.lxc`, and `
 The `application` role uses `inspect`, `present`, `reconcile`, `update`. The earlier `manage_hardware` toggle was removed: `present` ensures existence but never reconciles existing guest hardware. `guest_defaults` applies to creation only. `reconcile` changes only explicitly supplied per-guest hardware `settings` and never relies on `guest_defaults`. Do not silently change existing resources or add an automatic reboot. Keep `script_vars` as the exact upstream variable-name passthrough.
 
 ## Shared Ansible/Terraform contract
-- Public identity follows guest kind: use `ctid` for LXC, `vmid` for VM; they are mutually exclusive. Both map to PVE's global numeric identifier internally.
+- Public `vm_id` is shared by LXC and VM. The internal API retains the Proxmox `vmid` argument.
 - Shared public field names and Core mappings are governed by `contracts/guest.v1.json`. Compare changes to `mwyau/terraform-provider-proxmox-community-scripts`, updating both code/tests when the contract changes; no deprecated aliases in these unreleased projects.
 - Use `scripts_ref`/`core_ref` for pinned installation and separate `update_scripts_ref` for a requested LXC software-update source revision.
 - No jointly managed guest: Terraform owns guests in its state; Ansible may inspect them or perform disjoint in-guest configuration, but must not run `action: present`, `reconcile` or `update` on the same VMID unless ownership is explicitly delegated.
 
 ## Explicit LXC and VM identity (supersedes earlier vmid-only guidance)
-- Public Ansible application role: `ctid` for LXC, `vmid` for VM; exactly one. `var_ctid` is LXC Core's internal variable. The same mutually exclusive inputs are used by the Terraform guest resource; Terraform `id` stays a computed state/import identity `lxc/<ctid>` or `vm/<vmid>`.
+- Public Ansible application role uses one `vm_id` for both guest kinds. `var_ctid` and `VM_VMID` are Core internal values. Terraform `id` remains computed as `lxc/<vm_id>` or `vm/<vm_id>`.
 - Reflect the mutually exclusive identity rule in `contracts/guest.v1.json`, public examples, and tests. Avoid an additional `id` creation alias.
 
 
